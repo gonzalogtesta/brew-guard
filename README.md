@@ -1,33 +1,47 @@
 # brew-guard
 
-Use Homebrew securely and privately. brew-guard adds a security policy on top
-of Homebrew without replacing it or patching any of its files.
+Homebrew, but with a security policy and without the telemetry.
 
-**Status: early development.** The policy engine exists. The integration that
-actually gates `brew install` and `brew upgrade` is not built yet, so do not
-rely on this tool to protect you today.
+I like Homebrew and I don't want to replace it. What bothers me is that it
+installs and upgrades whatever is out there, minutes after release, and nobody
+checks if it is any good. brew-guard sits next to brew and applies rules you
+set. It never patches Homebrew's files.
 
-## What exists today
+## Status
 
-- A policy file in TOML, JSON or plain text (chosen by file extension) that
-  rejects unknown keys, so a typo cannot silently turn a protection off.
-- A decision engine: minimum release age (default 12 days), tap allowlist,
-  and per-package exceptions that need a reason and an expiry date.
-  An unknown publication date is treated as a failure.
-- A JSON-lines audit log of decisions.
-- `brew-guard doctor`: checks that Homebrew analytics are off and that
-  privacy-related `HOMEBREW_*` variables are set.
-- `brew-guard policy validate [file]`.
+Early development. Don't count on it to protect you yet.
 
-## What is planned
+The pieces exist and are tested, but nothing blocks a `brew install` right now.
+The part that connects them (a `check` command and a shim for `brew`) comes
+next.
 
-Shim or wrapper for `brew install` and `brew upgrade`, publication-date lookup,
-tap code review and diff, bottle attestation checks, change alerts, an SBOM,
-and vulnerability audit. Each phase is reviewed before the next starts.
+## What is in the repo today
 
-## Policy example
+- Policy file in TOML, JSON or plain text. The format comes from the file
+  extension. Unknown keys are an error, so a typo can't quietly turn a rule off.
+- Decision engine: minimum age of a release (default 12 days), tap allowlist,
+  and exceptions that need a reason and an expiry date. If the release date is
+  unknown it counts as a failure.
+- Release date lookup: finds the homebrew-core / homebrew-cask commit that
+  introduced a version. Bottle and revision commits are ignored, otherwise an
+  old version would look new again.
+- Runner for the real `brew`: absolute path, cleaned environment, parses
+  `brew info --json=v2` and `brew outdated --json=v2`.
+- Audit log in JSON lines.
+- `brew-guard doctor`: checks that analytics are off and that a few privacy
+  variables are set.
+- `brew-guard policy validate [file]`
 
-`~/.config/brew-guard/policy.toml`:
+## What is not there yet
+
+- `check`, the shim and the upgrade flow
+- showing a third party tap's code and diff before installing
+- attestation checks and change alerts
+- SBOM and vulnerability audit (OSV)
+
+## Policy
+
+`~/.config/brew-guard/policy.toml`
 
 ```toml
 min_age_days = 12
@@ -41,33 +55,40 @@ reason = "needed for a security fix"
 expires = 2026-12-01
 ```
 
-The same settings work as `policy.json` or `policy.txt`. Keep exactly one
-policy file in the directory.
+Same settings work as `policy.json` or `policy.txt`. Keep only one of them in
+the directory, with two it refuses to start.
 
 ## Build and test
 
-Requires the pinned Go toolchain (see `docs/PINNED-VERSIONS.md`).
+You need the Go version pinned in `go.mod` (see
+[docs/PINNED-VERSIONS.md](docs/PINNED-VERSIONS.md)).
 
 ```
 go test ./...
 go run ./cmd/brew-guard doctor
 ```
 
-## Network and privacy
+## Network
 
-brew-guard makes no network calls today and has no telemetry. When lookups are
-added, every endpoint will be listed here.
+No telemetry. The only host brew-guard talks to is:
 
-## What it does not do
+- `api.github.com`: read-only, to get the commit history of a formula or cask.
+  An optional token raises the rate limit and is only sent to that host.
 
-It reduces risk and cannot prove a package is safe. It does not protect
-against a compromised Homebrew infrastructure, malicious code that is already
-old, or malware running with your user privileges on your machine.
+Nothing in the CLI calls it yet, the code is in `internal/dates`. `doctor` only
+runs local commands. Any new endpoint will be added to this list.
+
+## Limits
+
+It lowers risk, it doesn't prove a package is safe. It won't help if
+Homebrew's own infrastructure is compromised, if the malicious code is old, or
+if malware already runs as your user.
 
 ## Dependencies
 
-None. See [docs/PINNED-VERSIONS.md](docs/PINNED-VERSIONS.md).
+None, standard library only. Versions are pinned, see
+[docs/PINNED-VERSIONS.md](docs/PINNED-VERSIONS.md).
 
 ## Licence
 
-MIT. See [LICENSE](LICENSE).
+MIT
