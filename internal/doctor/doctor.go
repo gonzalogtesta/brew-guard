@@ -39,6 +39,9 @@ func Run(env func(string) string, euid int) []Check {
 	return out
 }
 
+// Analytics reports whether Homebrew analytics are switched off.
+func Analytics() Check { return analytics() }
+
 // analytics reads Homebrew's own opt-out flag from its git config, without
 // running brew, so it still works when brew itself is broken.
 func analytics() Check {
