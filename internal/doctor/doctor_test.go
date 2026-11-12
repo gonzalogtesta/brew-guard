@@ -139,3 +139,12 @@ func TestAnalyticsWithGitRepo(t *testing.T) {
 		t.Fatalf("true should pass: %+v", c)
 	}
 }
+
+func TestAnalyticsExported(t *testing.T) {
+	old := brewRepos
+	brewRepos = []string{filepath.Join(t.TempDir(), "missing")}
+	defer func() { brewRepos = old }()
+	if c := Analytics(); c.OK || !strings.Contains(c.Name, "Homebrew repository") {
+		t.Fatalf("got %+v", c)
+	}
+}
