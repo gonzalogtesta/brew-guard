@@ -1,0 +1,5 @@
+/brew-guard
+/dist/
+*.test
+*.out
+.DS_Store
