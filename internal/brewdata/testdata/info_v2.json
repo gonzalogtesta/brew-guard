@@ -1,0 +1,12 @@
+{
+  "formulae": [
+    {"name": "jq", "tap": "homebrew/core", "revision": 0, "ruby_source_path": "Formula/j/jq.rb",
+     "deprecated": false, "disabled": false, "versions": {"stable": "1.8.2"},
+     "urls": {"stable": {"url": "https://github.com/jqlang/jq/releases/download/jq-1.8.2/jq-1.8.2.tar.gz", "checksum": "abc123"}}}
+  ],
+  "casks": [
+    {"token": "iterm2", "tap": "homebrew/cask", "version": "3.6.0", "sha256": "def456",
+     "url": "https://iterm2.com/downloads/stable/iTerm2-3_6_0.zip", "ruby_source_path": "Casks/i/iterm2.rb",
+     "deprecated": false, "disabled": true}
+  ]
+}

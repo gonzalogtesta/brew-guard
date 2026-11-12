@@ -1,0 +1,7 @@
+{
+  "formulae": [{"name": "jq", "installed_versions": ["1.8.1"], "current_version": "1.8.2", "pinned": false}],
+  "casks": [
+    {"name": "iterm2", "installed_versions": "3.5.0", "current_version": "3.6.0"},
+    {"name": "foo", "installed_versions": ["1.0", "1.1"], "current_version": "2.0"}
+  ]
+}
