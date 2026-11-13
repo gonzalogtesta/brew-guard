@@ -9,7 +9,8 @@ set. It never patches Homebrew's files.
 
 ## Status
 
-Early development, no release yet. Don't count on it to protect you yet.
+Early development. The first release is v0.1.0, the binaries are unsigned and
+unnotarized. Don't count on it to protect you yet.
 
 Once the `brew` link is in your `PATH`, `brew install`, `reinstall` and
 `upgrade` go through your policy first, and so does everything they would pull
@@ -35,6 +36,8 @@ container. A real install on macOS, and casks, are not tested yet.
   and `upgrade` through the check, passes read-only commands on, refuses the
   rest.
 - `brew-guard shim install|uninstall|status`: the `brew` link.
+- `brew-guard repair`: checks if Homebrew's own folder was altered and can
+  reset it to an official release.
 - `brew-guard doctor` and `brew-guard harden`: check and suggest privacy
   settings, including that Homebrew's tap trust is not switched off.
 - `brew-guard policy validate [file]`
@@ -97,6 +100,10 @@ dry-run prints several sections that I can't rely on, so it reads the formula
 metadata instead. It follows the runtime dependencies that aren't installed
 yet and checks those too. That is an estimate, not Homebrew's own plan: build
 only dependencies are left out and casks aren't expanded.
+
+Without a token GitHub allows 60 requests an hour. When that runs out,
+brew-guard stops asking, checks the rest from the cache, blocks what it can't
+check and tells you when to run it again. The dates it found are kept.
 
 If the release date can't be found (rate limit, no matching commit, no network)
 the date is unknown and that counts as a failure.

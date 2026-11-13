@@ -19,7 +19,7 @@ checks if it is any good. brew-guard sits next to brew and applies rules you
 set. It never patches Homebrew's files.
 </p>
 
-<p class="note"><strong>Early development, no release yet.</strong> With the
+<p class="note"><strong>Early development, first release is v0.1.0 (unsigned).</strong> With the
 <code>brew</code> link in your <code>PATH</code>, <code>brew install</code>,
 <code>reinstall</code> and <code>upgrade</code> go through your policy first.
 A real install on macOS, and casks, are not tested yet. Don't count on it to
@@ -34,6 +34,7 @@ protect you today.</p>
 <li>Checks everything an install would bring, not only the package you name. One young dependency blocks the install.</li>
 <li>Works as a <code>brew</code> wrapper: <code>install</code>, <code>reinstall</code> and <code>upgrade</code> run only after the check passes, read-only commands pass through, the rest is refused.</li>
 <li>Prints what runs at install time (post-install steps, services, installers) so you can see it before it happens.</li>
+<li><code>repair</code> detects an altered Homebrew folder and can reset it to an official release.</li>
 <li>Writes an audit log of every decision.</li>
 </ul>
 
