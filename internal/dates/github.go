@@ -65,7 +65,11 @@ type apiCommit struct {
 }
 
 // History returns up to maxPages*perPage commits touching path in repo
-// ("owner/name"), newest first.
+// ("owner/name"), newest first. If a page after the first one fails (GitHub
+// answers 422 "taking too long" for formulae with a very long history, like
+// ffmpeg), the commits already fetched are returned. A shorter history can
+// only make a version look newer than it is, or leave it unfound, and both
+// end in a block, so this stays on the safe side.
 func (g *GitHub) History(ctx context.Context, repo, path string) ([]Commit, error) {
 	var out []Commit
 	for page := 1; page <= maxPages; page++ {
@@ -73,6 +77,9 @@ func (g *GitHub) History(ctx context.Context, repo, path string) ([]Commit, erro
 		u := fmt.Sprintf("%s/repos/%s/commits?%s", strings.TrimRight(g.BaseURL, "/"), repo, q.Encode())
 		batch, err := g.fetch(ctx, u)
 		if err != nil {
+			if page > 1 && ctx.Err() == nil {
+				break
+			}
 			return nil, err
 		}
 		for _, c := range batch {

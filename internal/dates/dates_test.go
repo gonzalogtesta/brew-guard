@@ -192,6 +192,35 @@ func TestGitHubHistoryPaginationAndHeaders(t *testing.T) {
 	}
 }
 
+func TestGitHubHistoryKeepsEarlierPagesWhenALaterOneFails(t *testing.T) {
+	var asked []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		asked = append(asked, r.URL.Query().Get("page"))
+		if r.URL.Query().Get("page") != "1" {
+			w.WriteHeader(422) // "The request is taking too long to process"
+			return
+		}
+		json.NewEncoder(w).Encode(page(100, "p1-"))
+	}))
+	defer srv.Close()
+	g := &GitHub{BaseURL: srv.URL}
+	h, err := g.History(context.Background(), "Homebrew/homebrew-core", "Formula/f/ffmpeg.rb")
+	if err != nil || len(h) != 100 {
+		t.Fatalf("the first page is good data: len=%d err=%v", len(h), err)
+	}
+	if strings.Join(asked, ",") != "1,2" {
+		t.Fatalf("it must stop after the failed page: %v", asked)
+	}
+}
+
+func TestGitHubHistoryFirstPageFailureIsAnError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(422) }))
+	defer srv.Close()
+	if _, err := (&GitHub{BaseURL: srv.URL}).History(context.Background(), "o/r", "p"); err == nil {
+		t.Fatal("no data at all must stay an error")
+	}
+}
+
 func TestGitHubErrors(t *testing.T) {
 	cases := []struct {
 		name   string
