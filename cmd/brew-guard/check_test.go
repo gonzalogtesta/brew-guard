@@ -298,3 +298,12 @@ func TestDefaultCheckDeps(t *testing.T) {
 		t.Fatalf("fallback path: %s", d.AuditPath)
 	}
 }
+
+func TestCheckPrintsInstallSignals(t *testing.T) {
+	h := setup(t, 30, "")
+	h.runner.out["info --json=v2 jq"] = `{"formulae":[{"name":"jq","tap":"homebrew/core","post_install_defined":true,"service":{"run":["x"]},"ruby_source_path":"Formula/j/jq.rb","versions":{"stable":"1.8.2"}}]}`
+	code, out, _ := runCmd(h.env, "check", "jq")
+	if code != 0 || !strings.Contains(out, "* runs a post-install step") || !strings.Contains(out, "* installs a background service") {
+		t.Fatalf("code=%d out=%s", code, out)
+	}
+}

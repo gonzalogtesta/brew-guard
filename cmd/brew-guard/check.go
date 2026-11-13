@@ -174,6 +174,9 @@ func checkCmd(args []string, stdout, stderr io.Writer, env func(string) string) 
 		for _, r := range reasons {
 			fmt.Fprintf(stdout, "         - %s\n", r)
 		}
+		for _, sig := range pkg.Signals() {
+			fmt.Fprintf(stdout, "         * %s\n", sig)
+		}
 		if d.ExceptionUsed != "" {
 			fmt.Fprintf(stdout, "         - exception: %s\n", d.ExceptionUsed)
 		}
