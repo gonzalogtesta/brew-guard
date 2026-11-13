@@ -19,10 +19,11 @@ checks if it is any good. brew-guard sits next to brew and applies rules you
 set. It never patches Homebrew's files.
 </p>
 
-<p class="note"><strong>Early development.</strong> There is a <code>check</code>
-command that tells you if a package passes your policy. Nothing stops a
-<code>brew install</code> by itself yet. Don't count on it to protect you
-today.</p>
+<p class="note"><strong>Early development, no release yet.</strong> With the
+<code>brew</code> link in your <code>PATH</code>, <code>brew install</code>,
+<code>reinstall</code> and <code>upgrade</code> go through your policy first.
+A real install on macOS, and casks, are not tested yet. Don't count on it to
+protect you today.</p>
 
 <h2>What it does today</h2>
 <ul>
@@ -30,6 +31,9 @@ today.</p>
 <li>Tap allowlist. Third party taps are flagged for review.</li>
 <li>Finds the release date from the homebrew-core / homebrew-cask commit history, not from a bottle rebuild.</li>
 <li>Checks that Homebrew analytics are off (<code>doctor</code>) and prints the settings to turn them off (<code>harden</code>).</li>
+<li>Checks everything an install would bring, not only the package you name. One young dependency blocks the install.</li>
+<li>Works as a <code>brew</code> wrapper: <code>install</code>, <code>reinstall</code> and <code>upgrade</code> run only after the check passes, read-only commands pass through, the rest is refused.</li>
+<li>Prints what runs at install time (post-install steps, services, installers) so you can see it before it happens.</li>
 <li>Writes an audit log of every decision.</li>
 </ul>
 
@@ -49,7 +53,11 @@ typo can't quietly turn a rule off.</p>
 <h2>Try it</h2>
 <pre><code>git clone https://github.com/gonzalogtesta/brew-guard
 cd brew-guard
-go run ./cmd/brew-guard check jq</code></pre>
+go run ./cmd/brew-guard check jq
+go run ./cmd/brew-guard brew install jq</code></pre>
+<p>The second command installs jq only if the check passes. To make
+<code>brew</code> itself run it, see <code>brew-guard shim install</code> in the
+<a href="https://github.com/gonzalogtesta/brew-guard#using-it-as-brew">README</a>.</p>
 <p>You need the Go version pinned in <code>go.mod</code>.</p>
 
 <h2>Network</h2>
