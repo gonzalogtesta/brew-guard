@@ -417,3 +417,20 @@ func TestCheckOutdatedNoDeps(t *testing.T) {
 		t.Fatalf("code=%d out=%s", code, out)
 	}
 }
+
+func TestCheckNamesTheRequestedPackageWhenOnlyDependenciesAreNew(t *testing.T) {
+	h := setup(t, 30, "")
+	// jq is installed already, brew only lists what its upgrade would add.
+	h.runner.out["install --dry-run jq"] = "==> Would install 1 dependency for jq:\noniguruma 6.9.10\n"
+	h.runner.out["info --json=v2 jq oniguruma"] = `{"formulae":[` +
+		`{"name":"jq","tap":"homebrew/core","versions":{"stable":"1.8.2"},"ruby_source_path":"Formula/j/jq.rb"},` +
+		`{"name":"oniguruma","tap":"homebrew/core","versions":{"stable":"6.9.10"},"ruby_source_path":"Formula/o/oniguruma.rb"}],"casks":[]}`
+	h.hist.h = []dates.Commit{
+		{SHA: "aaaaaaaaaaaa", Time: checkNow.AddDate(0, 0, -30), Message: "jq 1.8.2"},
+		{SHA: "bbbbbbbbbbbb", Time: checkNow.AddDate(0, 0, -30), Message: "oniguruma 6.9.10"},
+	}
+	_, out, _ := runCmd(h.env, "check", "jq")
+	if !strings.Contains(out, "installing jq would also install 1 more package: oniguruma") {
+		t.Fatalf("the summary must name jq:\n%s", out)
+	}
+}

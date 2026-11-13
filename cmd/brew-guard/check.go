@@ -153,8 +153,13 @@ func resolveInstall(ctx context.Context, stdout io.Writer, r brewdata.Runner, fl
 		case len(set) == 0:
 			fmt.Fprintf(stdout, "brew has nothing new to install for %s\n", strings.Join(names, ", "))
 		case len(extra) > 0:
+			// A package that is already installed is not in the set, only its new dependencies are.
+			asked := requested(set)
+			if len(asked) == 0 {
+				asked = names[:len(names)-len(extra)]
+			}
 			fmt.Fprintf(stdout, "installing %s would also install %d more %s: %s\n",
-				strings.Join(requested(set), ", "), len(extra), plural(len(extra)), strings.Join(extra, ", "))
+				strings.Join(asked, ", "), len(extra), plural(len(extra)), strings.Join(extra, ", "))
 		}
 	}
 	pkgs, err := brewdata.Info(ctx, r, names...)
