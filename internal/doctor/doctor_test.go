@@ -148,3 +148,14 @@ func TestAnalyticsExported(t *testing.T) {
 		t.Fatalf("got %+v", c)
 	}
 }
+
+func TestTapTrustCheck(t *testing.T) {
+	const name = "tap trust is not disabled"
+	if c := findCheck(t, Run(mapEnv(nil), 501), name); !c.OK || c.Detail != "" {
+		t.Fatalf("unset must pass: %+v", c)
+	}
+	c := findCheck(t, Run(mapEnv(map[string]string{"HOMEBREW_NO_REQUIRE_TAP_TRUST": "1"}), 501), name)
+	if c.OK || !strings.Contains(c.Detail, "HOMEBREW_NO_REQUIRE_TAP_TRUST") {
+		t.Fatalf("set must fail with a hint: %+v", c)
+	}
+}
