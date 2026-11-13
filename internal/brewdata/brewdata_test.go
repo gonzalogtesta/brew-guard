@@ -218,3 +218,55 @@ func TestLimitedBuffer(t *testing.T) {
 		t.Fatalf("%q over=%v", l.String(), l.over)
 	}
 }
+
+func TestSignalsFormula(t *testing.T) {
+	in := `{"formulae":[
+	  {"name":"a","post_install_defined":true,"service":{"run":["a"]},"caveats":"read me","versions":{"stable":"1"}},
+	  {"name":"b","post_install_defined":false,"service":null,"caveats":null,"versions":{"stable":"1"}},
+	  {"name":"c","service":{},"caveats":"  ","versions":{"stable":"1"}}]}`
+	pkgs, err := ParseInfo([]byte(in))
+	if err != nil {
+		t.Fatal(err)
+	}
+	a, b, c := pkgs[0], pkgs[1], pkgs[2]
+	if !a.PostInstall || !a.HasService || !a.HasCaveats {
+		t.Fatalf("a: %+v", a)
+	}
+	if strings.Join(a.Signals(), "|") != "runs a post-install step|installs a background service" {
+		t.Fatalf("signals: %v", a.Signals())
+	}
+	if b.PostInstall || b.HasService || b.HasCaveats || len(b.Signals()) != 0 {
+		t.Fatalf("b: %+v", b)
+	}
+	if c.HasService || c.HasCaveats {
+		t.Fatalf("empty service and blank caveats must not count: %+v", c)
+	}
+}
+
+func TestSignalsCask(t *testing.T) {
+	in := `{"casks":[{"token":"x","sha256":"no_check","version":"1","artifacts":[
+	  {"app":["X.app"]},{"pkg":["X.pkg"]},{"postflight_steps":[]},{"uninstall":[{"launchctl":"x"}]},{"app":["Y.app"]}]}]}`
+	pkgs, err := ParseInfo([]byte(in))
+	if err != nil || len(pkgs) != 1 {
+		t.Fatal(err)
+	}
+	p := pkgs[0]
+	if strings.Join(p.ArtifactKinds, ",") != "app,pkg,postflight_steps,uninstall" || !p.NoCheck {
+		t.Fatalf("%+v", p)
+	}
+	s := strings.Join(p.Signals(), "|")
+	for _, want := range []string{"no_check", "installer (pkg)", "install scripts (postflight_steps)"} {
+		if !strings.Contains(s, want) {
+			t.Errorf("signals lack %q: %s", want, s)
+		}
+	}
+	if strings.Contains(s, "uninstall") || strings.Contains(s, "app") {
+		t.Errorf("plain artifacts must not raise signals: %s", s)
+	}
+}
+
+func TestSignalsIgnoreMalformedArtifacts(t *testing.T) {
+	if _, err := ParseInfo([]byte(`{"casks":[{"token":"x","artifacts":"nope"}]}`)); err == nil {
+		t.Fatal("artifacts of the wrong type must be an error, not silently ignored")
+	}
+}

@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/gonzalogtesta/brew-guard/internal/dates"
@@ -37,17 +38,27 @@ type Package struct {
 	Checksum   string
 	Deprecated bool
 	Disabled   bool
+
+	// Signals that something runs or is not verified at install time.
+	PostInstall   bool     // formula defines a post-install step
+	HasService    bool     // formula defines a launchd/systemd service
+	HasCaveats    bool     // brew prints caveats after install
+	ArtifactKinds []string // cask artifact types, sorted (app, pkg, binary, ...)
+	NoCheck       bool     // cask checksum is "no_check": the download is not verified
 }
 
 type infoJSON struct {
 	Formulae []struct {
-		Name       string `json:"name"`
-		Tap        string `json:"tap"`
-		Revision   int    `json:"revision"`
-		SourcePath string `json:"ruby_source_path"`
-		Deprecated bool   `json:"deprecated"`
-		Disabled   bool   `json:"disabled"`
-		Versions   struct {
+		Name        string          `json:"name"`
+		Tap         string          `json:"tap"`
+		Revision    int             `json:"revision"`
+		SourcePath  string          `json:"ruby_source_path"`
+		Deprecated  bool            `json:"deprecated"`
+		Disabled    bool            `json:"disabled"`
+		PostInstall bool            `json:"post_install_defined"`
+		Service     json.RawMessage `json:"service"`
+		Caveats     *string         `json:"caveats"`
+		Versions    struct {
 			Stable string `json:"stable"`
 		} `json:"versions"`
 		URLs struct {
@@ -58,14 +69,15 @@ type infoJSON struct {
 		} `json:"urls"`
 	} `json:"formulae"`
 	Casks []struct {
-		Token      string `json:"token"`
-		Tap        string `json:"tap"`
-		Version    string `json:"version"`
-		SHA256     string `json:"sha256"`
-		URL        string `json:"url"`
-		SourcePath string `json:"ruby_source_path"`
-		Deprecated bool   `json:"deprecated"`
-		Disabled   bool   `json:"disabled"`
+		Token      string                       `json:"token"`
+		Tap        string                       `json:"tap"`
+		Version    string                       `json:"version"`
+		SHA256     string                       `json:"sha256"`
+		URL        string                       `json:"url"`
+		SourcePath string                       `json:"ruby_source_path"`
+		Deprecated bool                         `json:"deprecated"`
+		Disabled   bool                         `json:"disabled"`
+		Artifacts  []map[string]json.RawMessage `json:"artifacts"`
 	} `json:"casks"`
 }
 
@@ -79,11 +91,13 @@ func ParseInfo(b []byte) ([]Package, error) {
 	for _, f := range in.Formulae {
 		out = append(out, Package{Name: f.Name, Kind: dates.Formula, Tap: f.Tap, Version: f.Versions.Stable,
 			Revision: f.Revision, SourcePath: f.SourcePath, URL: f.URLs.Stable.URL, Checksum: f.URLs.Stable.Checksum,
-			Deprecated: f.Deprecated, Disabled: f.Disabled})
+			Deprecated: f.Deprecated, Disabled: f.Disabled, PostInstall: f.PostInstall,
+			HasService: hasValue(f.Service), HasCaveats: f.Caveats != nil && strings.TrimSpace(*f.Caveats) != ""})
 	}
 	for _, c := range in.Casks {
 		out = append(out, Package{Name: c.Token, Kind: dates.Cask, Tap: c.Tap, Version: c.Version,
-			SourcePath: c.SourcePath, URL: c.URL, Checksum: c.SHA256, Deprecated: c.Deprecated, Disabled: c.Disabled})
+			SourcePath: c.SourcePath, URL: c.URL, Checksum: c.SHA256, Deprecated: c.Deprecated, Disabled: c.Disabled,
+			ArtifactKinds: artifactKinds(c.Artifacts), NoCheck: c.SHA256 == "no_check"})
 	}
 	return out, nil
 }
@@ -180,4 +194,50 @@ func ListOutdated(ctx context.Context, r Runner) ([]Outdated, error) {
 		return nil, err
 	}
 	return ParseOutdated(b)
+}
+
+func hasValue(raw json.RawMessage) bool {
+	s := strings.TrimSpace(string(raw))
+	return s != "" && s != "null" && s != "{}" && s != "[]"
+}
+
+// artifactKinds returns the sorted, unique artifact type names of a cask.
+func artifactKinds(arts []map[string]json.RawMessage) []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, a := range arts {
+		for k := range a {
+			if !seen[k] {
+				seen[k] = true
+				out = append(out, k)
+			}
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+// Signals describes, in words, anything about the package that runs code or
+// skips verification at install time. They are notes for the user; they do not
+// change an allow or block decision.
+func (p Package) Signals() []string {
+	var out []string
+	if p.PostInstall {
+		out = append(out, "runs a post-install step")
+	}
+	if p.HasService {
+		out = append(out, "installs a background service")
+	}
+	if p.NoCheck {
+		out = append(out, "download checksum is not verified (no_check)")
+	}
+	for _, k := range p.ArtifactKinds {
+		switch k {
+		case "pkg", "installer":
+			out = append(out, "cask runs an installer ("+k+"), which needs admin rights")
+		case "preflight", "postflight", "preflight_steps", "postflight_steps":
+			out = append(out, "cask runs install scripts ("+k+")")
+		}
+	}
+	return out
 }
