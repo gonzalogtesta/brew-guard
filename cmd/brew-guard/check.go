@@ -72,7 +72,8 @@ func xdgDir(env func(string) string, xdg, fallback string) string {
 func checkCmd(args []string, stdout, stderr io.Writer, env func(string) string) int {
 	fs := flag.NewFlagSet("check", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	offline := fs.Bool("offline", false, "use cached release dates only, no network")
+	offline := fs.Bool("offline", false, "no GitHub lookups, use cached release dates only")
+	noDeps := fs.Bool("no-deps", false, "check only the named packages, not what brew would install with them")
 	outdated := fs.Bool("outdated", false, "check everything brew reports as outdated")
 	policyPath := fs.String("policy", "", "policy file (default: the one in the config directory)")
 	if err := fs.Parse(args); err != nil {
@@ -113,6 +114,23 @@ func checkCmd(args []string, stdout, stderr io.Writer, env func(string) string) 
 			return exitOK
 		}
 	}
+	via := map[string]string{}
+	if !*outdated && !*noDeps {
+		set, err := brewdata.InstallSet(ctx, deps.Runner, names...)
+		if err != nil {
+			fmt.Fprintln(stderr, "check:", err)
+			return exitError
+		}
+		var extra []string
+		names, extra = expandSet(names, set, via)
+		switch {
+		case len(set) == 0:
+			fmt.Fprintf(stdout, "brew has nothing new to install for %s\n", strings.Join(names, ", "))
+		case len(extra) > 0:
+			fmt.Fprintf(stdout, "installing %s would also install %d more %s: %s\n",
+				strings.Join(requested(set), ", "), len(extra), plural(len(extra)), strings.Join(extra, ", "))
+		}
+	}
 	pkgs, err := brewdata.Info(ctx, deps.Runner, names...)
 	if err != nil {
 		fmt.Fprintln(stderr, "check:", err)
@@ -149,6 +167,9 @@ func checkCmd(args []string, stdout, stderr io.Writer, env func(string) string) 
 		d := decide.Evaluate(p, decide.Subject{Name: pkg.Name, Tap: pkg.Tap, Version: pkg.Version,
 			Published: res.Time, DateSource: res.Source}, deps.Now())
 		reasons := d.Reasons
+		if v := via[pkg.Name]; v != "" {
+			reasons = append(reasons, "installed as a dependency of "+v)
+		}
 		if lerr != nil {
 			reasons = append(reasons, "date lookup failed: "+lerr.Error())
 		}
@@ -206,6 +227,45 @@ func loadPolicy(path string, env func(string) string) (policy.Policy, string, er
 	}
 	p, err := policy.Load(path)
 	return p, "", err
+}
+
+// expandSet adds the dependencies brew would install to the requested names.
+// It records in via which package each dependency belongs to, and returns the
+// full list (requested first) and the names of the extra packages.
+func expandSet(names []string, set []brewdata.SetItem, via map[string]string) (all, extra []string) {
+	seen := map[string]bool{}
+	for _, n := range names {
+		seen[n] = true
+		all = append(all, n)
+	}
+	for _, it := range set {
+		if seen[it.Name] {
+			continue
+		}
+		seen[it.Name] = true
+		via[it.Name] = it.Via
+		all = append(all, it.Name)
+		extra = append(extra, it.Name)
+	}
+	return all, extra
+}
+
+// requested lists the packages of the set that were asked for, not pulled in.
+func requested(set []brewdata.SetItem) []string {
+	var out []string
+	for _, it := range set {
+		if it.Via == "" {
+			out = append(out, it.Name)
+		}
+	}
+	return out
+}
+
+func plural(n int) string {
+	if n == 1 {
+		return "package"
+	}
+	return "packages"
 }
 
 func outdatedNames(o []brewdata.Outdated) []string {
