@@ -66,6 +66,7 @@ the directory, with two it refuses to start.
 brew-guard check jq wget
 brew-guard check --outdated
 brew-guard check --offline jq
+brew-guard check --no-deps jq
 brew-guard check --policy ./policy.toml jq
 ```
 
@@ -73,9 +74,17 @@ For each package it asks brew for the tap and version, finds the release date,
 applies the policy and prints the result with the reasons. Every decision goes
 to the audit log. It only reports, it doesn't install or block anything.
 
+`brew install jq` can bring other packages with it. So `check jq` first asks
+brew what it would install (`brew install --dry-run`, which installs nothing),
+prints how many packages come with it and which ones, and then checks every one
+of them with the same policy. If one dependency is too young, the whole result
+is a block and the output says which package it is. `--no-deps` checks only the
+names you gave. `--outdated` doesn't expand dependencies yet.
+
 If the release date can't be found (rate limit, no matching commit, no network)
 the date is unknown and that counts as a failure. `--offline` only uses dates
-already in the cache.
+already in the cache. It restricts brew-guard's own GitHub lookups, not brew's
+dry-run.
 
 If `block_telemetry` is on and Homebrew analytics are not disabled, the check
 fails too.

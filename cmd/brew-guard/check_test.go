@@ -58,9 +58,11 @@ func setup(t *testing.T, ageDays int, policyBody string) *harness {
 	dir := t.TempDir()
 	h := &harness{
 		runner: &fakeRunner{out: map[string]string{
-			"info --json=v2 jq":    infoJSON("jq", "homebrew/core", "1.8.2"),
-			"info --json=v2 weird": infoJSON("weird", "me/tools", "1.0"),
-			"outdated --json=v2":   `{"formulae":[{"name":"jq","installed_versions":["1.8.1"],"current_version":"1.8.2"}],"casks":[]}`,
+			"install --dry-run jq":    "==> Would install 1 formula:\njq 1.8.2\n",
+			"install --dry-run weird": "==> Would install 1 formula:\nweird 1.0\n",
+			"info --json=v2 jq":       infoJSON("jq", "homebrew/core", "1.8.2"),
+			"info --json=v2 weird":    infoJSON("weird", "me/tools", "1.0"),
+			"outdated --json=v2":      `{"formulae":[{"name":"jq","installed_versions":["1.8.1"],"current_version":"1.8.2"}],"casks":[]}`,
 		}},
 		hist: &fakeHistory{h: []dates.Commit{
 			{SHA: "abcdef123456", Time: checkNow.AddDate(0, 0, -ageDays), Message: "jq 1.8.2"},
@@ -305,5 +307,78 @@ func TestCheckPrintsInstallSignals(t *testing.T) {
 	code, out, _ := runCmd(h.env, "check", "jq")
 	if code != 0 || !strings.Contains(out, "* runs a post-install step") || !strings.Contains(out, "* installs a background service") {
 		t.Fatalf("code=%d out=%s", code, out)
+	}
+}
+
+// withDependency makes brew say that installing jq also installs oniguruma,
+// introduced `ageDays` ago.
+func withDependency(h *harness, ageDays int) {
+	h.runner.out["install --dry-run jq"] = "==> Would install 1 formula:\njq 1.8.2\n==> Would install 1 dependency for jq:\noniguruma 6.9.10\n"
+	h.runner.out["info --json=v2 jq oniguruma"] = `{"formulae":[` +
+		`{"name":"jq","tap":"homebrew/core","versions":{"stable":"1.8.2"},"ruby_source_path":"Formula/j/jq.rb"},` +
+		`{"name":"oniguruma","tap":"homebrew/core","versions":{"stable":"6.9.10"},"ruby_source_path":"Formula/o/oniguruma.rb"}],"casks":[]}`
+	h.hist.h = []dates.Commit{
+		{SHA: "aaaaaaaaaaaa", Time: checkNow.AddDate(0, 0, -30), Message: "jq 1.8.2"},
+		{SHA: "bbbbbbbbbbbb", Time: checkNow.AddDate(0, 0, -ageDays), Message: "oniguruma 6.9.10"},
+	}
+}
+
+func TestCheckListsAndChecksDependencies(t *testing.T) {
+	h := setup(t, 30, "")
+	withDependency(h, 30)
+	code, out, errs := runCmd(h.env, "check", "jq")
+	if code != 0 || errs != "" {
+		t.Fatalf("code=%d err=%q out=%q", code, errs, out)
+	}
+	for _, want := range []string{"installing jq would also install 1 more package: oniguruma", "oniguruma 6.9.10", "installed as a dependency of jq"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("output lacks %q:\n%s", want, out)
+		}
+	}
+	if a := h.audit(t); !strings.Contains(a, `"package":"oniguruma"`) {
+		t.Fatalf("dependency must be audited: %s", a)
+	}
+}
+
+func TestCheckYoungDependencyBlocksTheInstall(t *testing.T) {
+	h := setup(t, 30, "")
+	withDependency(h, 2)
+	code, out, _ := runCmd(h.env, "check", "jq")
+	if code != 1 {
+		t.Fatalf("a young dependency must block, code=%d out=%s", code, out)
+	}
+	if !strings.Contains(out, "ALLOW  jq") || !strings.Contains(out, "BLOCK  oniguruma") {
+		t.Fatalf("jq is old enough, only the dependency should block:\n%s", out)
+	}
+}
+
+func TestCheckNoDepsSkipsTheInstallSet(t *testing.T) {
+	h := setup(t, 30, "")
+	withDependency(h, 2)
+	code, out, _ := runCmd(h.env, "check", "--no-deps", "jq")
+	if code != 0 || strings.Contains(out, "oniguruma") {
+		t.Fatalf("--no-deps must check only jq, code=%d out=%s", code, out)
+	}
+	for _, c := range h.runner.calls {
+		if strings.HasPrefix(c, "install") {
+			t.Fatalf("--no-deps must not call install: %v", h.runner.calls)
+		}
+	}
+}
+
+func TestCheckNothingToInstall(t *testing.T) {
+	h := setup(t, 30, "")
+	h.runner.out["install --dry-run jq"] = "Warning: jq 1.8.2 is already installed and up-to-date.\n"
+	code, out, _ := runCmd(h.env, "check", "jq")
+	if code != 0 || !strings.Contains(out, "brew has nothing new to install for jq") || !strings.Contains(out, "ALLOW  jq") {
+		t.Fatalf("code=%d out=%s", code, out)
+	}
+}
+
+func TestCheckUnreadableDryRunIsAnError(t *testing.T) {
+	h := setup(t, 30, "")
+	h.runner.out["install --dry-run jq"] = "==> Would install 3 formulae:\njq 1.8.2\n"
+	if code, _, errs := runCmd(h.env, "check", "jq"); code != 2 || !strings.Contains(errs, "announced 3") {
+		t.Fatalf("code=%d err=%s", code, errs)
 	}
 }
