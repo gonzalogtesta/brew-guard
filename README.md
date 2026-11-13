@@ -9,10 +9,12 @@ set. It never patches Homebrew's files.
 
 ## Status
 
-Early development. Don't count on it to protect you yet.
+Early development, no release yet. Don't count on it to protect you yet.
 
-There is a `check` command that tells you if a package passes your policy, but
-nothing stops a `brew install` by itself yet. The shim for `brew` comes next.
+Once the `brew` link is in your `PATH`, `brew install`, `reinstall` and
+`upgrade` go through your policy first, and so does everything they would pull
+in. I have tested it with fake brew output and against a Linux Homebrew in a
+container. A real install on macOS, and casks, are not tested yet.
 
 ## What is in the repo today
 
@@ -27,19 +29,27 @@ nothing stops a `brew install` by itself yet. The shim for `brew` comes next.
 - Runner for the real `brew`: absolute path, cleaned environment, parses
   `brew info --json=v2` and `brew outdated --json=v2`.
 - Audit log in JSON lines.
-- `brew-guard doctor`: checks that analytics are off and that a few privacy
-  variables are set.
+- `brew-guard check`: tells you if the policy allows a package and everything
+  it would bring, and prints notes about what runs at install time.
+- `brew-guard brew ...` (or a link called `brew`): runs `install`, `reinstall`
+  and `upgrade` through the check, passes read-only commands on, refuses the
+  rest.
+- `brew-guard shim install|uninstall|status`: the `brew` link.
+- `brew-guard doctor` and `brew-guard harden`: check and suggest privacy
+  settings, including that Homebrew's tap trust is not switched off.
 - `brew-guard policy validate [file]`
-- `brew-guard check`: looks at packages and tells you if the policy allows them.
-  See below.
+- A reproducible build script and CI and release workflows that use no
+  third party actions.
 
 ## What is not there yet
 
-- the shim, so `brew install` runs `check` first
-- the upgrade flow
-- showing a third party tap's code and diff before installing
+- showing a third party tap's code and diff before installing, and `brew trust`
+- pinning the real brew against replacement, and taking over the `brew` symlink
 - attestation checks and change alerts
 - SBOM and vulnerability audit (OSV)
+- signed releases and build provenance
+- a tap, so that brew-guard can be installed with brew
+- cask support is untested, and dependencies of casks aren't expanded
 
 ## Policy
 
