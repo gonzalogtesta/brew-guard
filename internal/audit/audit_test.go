@@ -2,13 +2,87 @@ package audit
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 )
+
+// fakeWC is an in-memory io.WriteCloser that can be told to fail.
+type fakeWC struct {
+	buf      bytes.Buffer
+	writeErr error
+	closeErr error
+	closed   int
+}
+
+func (f *fakeWC) Write(p []byte) (int, error) {
+	if f.writeErr != nil {
+		return 0, f.writeErr
+	}
+	return f.buf.Write(p)
+}
+
+func (f *fakeWC) Close() error {
+	f.closed++
+	return f.closeErr
+}
+
+func TestAppendMarshalError(t *testing.T) {
+	// time.Time refuses to marshal years outside [0, 9999].
+	p := filepath.Join(t.TempDir(), "audit.jsonl")
+	e := Entry{Time: time.Date(10000, 1, 1, 0, 0, 0, 0, time.UTC), Action: "allow"}
+	if err := Append(p, e); err == nil {
+		t.Fatal("expected marshal error")
+	}
+}
+
+func TestWriteEntry(t *testing.T) {
+	sentinel := errors.New("boom")
+	badTime := Entry{Time: time.Date(-1, 1, 1, 0, 0, 0, 0, time.UTC), Action: "allow"}
+
+	tests := []struct {
+		name     string
+		entry    Entry
+		writeErr error
+		closeErr error
+		wantErr  bool
+		wantLine bool
+	}{
+		{name: "ok", entry: Entry{Action: "allow"}, wantLine: true},
+		{name: "marshal error", entry: badTime, wantErr: true},
+		{name: "write error", entry: Entry{Action: "allow"}, writeErr: sentinel, wantErr: true},
+		{name: "close error", entry: Entry{Action: "allow"}, closeErr: sentinel, wantErr: true, wantLine: true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			w := &fakeWC{writeErr: tc.writeErr, closeErr: tc.closeErr}
+			err := writeEntry(w, tc.entry)
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("err = %v, wantErr %v", err, tc.wantErr)
+			}
+			if tc.closeErr != nil && err != tc.closeErr {
+				t.Errorf("err = %v, want close error %v", err, tc.closeErr)
+			}
+			if tc.writeErr != nil && err != tc.writeErr {
+				t.Errorf("err = %v, want write error %v", err, tc.writeErr)
+			}
+			if w.closed != 1 {
+				t.Errorf("Close called %d times, want 1", w.closed)
+			}
+			if got := w.buf.Len() > 0; got != tc.wantLine {
+				t.Errorf("wrote line = %v, want %v (%q)", got, tc.wantLine, w.buf.String())
+			}
+			if tc.wantLine && !strings.HasSuffix(w.buf.String(), "\n") {
+				t.Errorf("line not newline-terminated: %q", w.buf.String())
+			}
+		})
+	}
+}
 
 func TestAppend(t *testing.T) {
 	p := filepath.Join(t.TempDir(), "a", "audit.jsonl")
