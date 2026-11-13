@@ -69,24 +69,33 @@ func TestParseDryRunFailsClosed(t *testing.T) {
 
 func TestInstallSetRunsDryRun(t *testing.T) {
 	r := &stubRunner{out: "==> Would install 1 formula:\njq 1.8.2\n"}
-	items, err := InstallSet(context.Background(), r, "jq")
+	items, err := InstallSet(context.Background(), r, []string{"--cask"}, "jq")
 	if err != nil || len(items) != 1 {
 		t.Fatalf("%v %v", items, err)
 	}
-	if got := strings.Join(r.args, " "); got != "install --dry-run jq" {
+	if got := strings.Join(r.args, " "); got != "install --dry-run --cask jq" {
 		t.Fatalf("args: %s", got)
 	}
 }
 
 func TestInstallSetErrors(t *testing.T) {
-	if _, err := InstallSet(context.Background(), &stubRunner{}); err == nil {
+	if _, err := InstallSet(context.Background(), &stubRunner{}, nil); err == nil {
 		t.Fatal("no names must fail")
 	}
 	r := &stubRunner{}
-	if _, err := InstallSet(context.Background(), r, "--force"); err == nil || r.args != nil {
+	if _, err := InstallSet(context.Background(), r, nil, "--force"); err == nil || r.args != nil {
 		t.Fatal("option-looking names must be refused before brew runs")
 	}
-	if _, err := InstallSet(context.Background(), &stubRunner{err: errors.New("boom")}, "jq"); err == nil {
+	if _, err := InstallSet(context.Background(), &stubRunner{err: errors.New("boom")}, nil, "jq"); err == nil {
 		t.Fatal("brew failure must be returned")
+	}
+}
+
+func TestInstallSetRefusesOddFlags(t *testing.T) {
+	r := &stubRunner{}
+	for _, f := range []string{"--appdir=/tmp", "x", "--", "-1"} {
+		if _, err := InstallSet(context.Background(), r, []string{f}, "jq"); err == nil || r.args != nil {
+			t.Errorf("flag %q must be refused before brew runs", f)
+		}
 	}
 }

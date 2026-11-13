@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/gonzalogtesta/brew-guard/internal/audit"
@@ -42,6 +43,8 @@ type checkDeps struct {
 	Cache     *dates.Cache
 	Now       func() time.Time
 	AuditPath string
+	// Exec replaces this process with the pinned brew. It returns only on failure.
+	Exec func(args []string) error
 }
 
 func defaultCheckDeps(env func(string) string) (checkDeps, error) {
@@ -53,7 +56,15 @@ func defaultCheckDeps(env func(string) string) (checkDeps, error) {
 	if token == "" {
 		token = env("GH_TOKEN")
 	}
+	if self, err := os.Executable(); err == nil {
+		if self, err = filepath.EvalSymlinks(self); err == nil && self == brew {
+			return checkDeps{}, errors.New("the brew found is brew-guard itself; point brew-guard at the real Homebrew")
+		}
+	}
 	return checkDeps{
+		Exec: func(args []string) error {
+			return syscall.Exec(brew, append([]string{"brew"}, args...), brewdata.Env(os.Environ()))
+		},
 		Runner:    brewdata.ExecRunner{Brew: brew, Parent: os.Environ()},
 		History:   dates.NewGitHub(token, "brew-guard/"+version),
 		Cache:     dates.OpenCache(filepath.Join(xdgDir(env, "XDG_CACHE_HOME", ".cache"), "brew-guard", "dates.json")),
@@ -102,6 +113,8 @@ func checkCmd(args []string, stdout, stderr io.Writer, env func(string) string) 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
+	var pkgs []brewdata.Package
+	via := map[string]string{}
 	if *outdated {
 		o, err := brewdata.ListOutdated(ctx, deps.Runner)
 		if err != nil {
@@ -113,13 +126,26 @@ func checkCmd(args []string, stdout, stderr io.Writer, env func(string) string) 
 			fmt.Fprintln(stdout, "nothing is outdated")
 			return exitOK
 		}
+		pkgs, via, err = resolveUpgrade(ctx, stdout, deps.Runner, names, !*noDeps)
+	} else {
+		pkgs, via, err = resolveInstall(ctx, stdout, deps.Runner, nil, names, !*noDeps)
 	}
+	if err != nil {
+		fmt.Fprintln(stderr, "check:", err)
+		return exitError
+	}
+	return evaluate(ctx, stdout, stderr, p, deps, env, pkgs, via, *offline, "check")
+}
+
+// resolveInstall works out what `brew install flags names` would install and
+// returns it with the package each dependency belongs to. With expand false
+// only the named packages are looked at.
+func resolveInstall(ctx context.Context, stdout io.Writer, r brewdata.Runner, flags, names []string, expand bool) ([]brewdata.Package, map[string]string, error) {
 	via := map[string]string{}
-	if !*outdated && !*noDeps {
-		set, err := brewdata.InstallSet(ctx, deps.Runner, names...)
+	if expand {
+		set, err := brewdata.InstallSet(ctx, r, flags, names...)
 		if err != nil {
-			fmt.Fprintln(stderr, "check:", err)
-			return exitError
+			return nil, nil, err
 		}
 		var extra []string
 		names, extra = expandSet(names, set, via)
@@ -131,28 +157,38 @@ func checkCmd(args []string, stdout, stderr io.Writer, env func(string) string) 
 				strings.Join(requested(set), ", "), len(extra), plural(len(extra)), strings.Join(extra, ", "))
 		}
 	}
-	pkgs, err := brewdata.Info(ctx, deps.Runner, names...)
-	if err != nil {
-		fmt.Fprintln(stderr, "check:", err)
-		return exitError
-	}
-	if *outdated && !*noDeps {
-		extra, v, err := brewdata.ExpandDeps(ctx, deps.Runner, pkgs)
-		if err != nil {
-			fmt.Fprintln(stderr, "check:", err)
-			return exitError
-		}
-		if len(extra) > 0 {
-			var en []string
-			for _, e := range extra {
-				en = append(en, e.Name)
-				via[e.Name] = v[e.Name]
-			}
-			fmt.Fprintf(stdout, "upgrading would also install %d new %s: %s\n", len(en), plural(len(en)), strings.Join(en, ", "))
-			pkgs = append(pkgs, extra...)
-		}
-	}
+	pkgs, err := brewdata.Info(ctx, r, names...)
+	return pkgs, via, err
+}
 
+// resolveUpgrade looks at the named packages and, with expand true, at the new
+// dependencies that upgrading them would install.
+func resolveUpgrade(ctx context.Context, stdout io.Writer, r brewdata.Runner, names []string, expand bool) ([]brewdata.Package, map[string]string, error) {
+	via := map[string]string{}
+	pkgs, err := brewdata.Info(ctx, r, names...)
+	if err != nil || !expand {
+		return pkgs, via, err
+	}
+	extra, v, err := brewdata.ExpandDeps(ctx, r, pkgs)
+	if err != nil {
+		return nil, nil, err
+	}
+	if len(extra) > 0 {
+		var en []string
+		for _, e := range extra {
+			en = append(en, e.Name)
+			via[e.Name] = v[e.Name]
+		}
+		fmt.Fprintf(stdout, "upgrading would also install %d new %s: %s\n", len(en), plural(len(en)), strings.Join(en, ", "))
+		pkgs = append(pkgs, extra...)
+	}
+	return pkgs, via, nil
+}
+
+// evaluate applies the policy to every package, prints one block per package,
+// writes the audit log and returns the exit code of the whole set.
+func evaluate(ctx context.Context, stdout, stderr io.Writer, p policy.Policy, deps checkDeps, env func(string) string,
+	pkgs []brewdata.Package, via map[string]string, offline bool, command string) int {
 	code := exitOK
 	worse := func(c int) {
 		if c == exitBlock || code == exitOK {
@@ -160,7 +196,7 @@ func checkCmd(args []string, stdout, stderr io.Writer, env func(string) string) 
 		}
 	}
 	record := func(e audit.Entry) {
-		e.Time, e.Command = deps.Now().UTC(), "check"
+		e.Time, e.Command = deps.Now().UTC(), command
 		if err := audit.Append(deps.AuditPath, e); err != nil {
 			fmt.Fprintln(stderr, "warning: audit log not written:", err)
 		}
@@ -179,7 +215,7 @@ func checkCmd(args []string, stdout, stderr io.Writer, env func(string) string) 
 	}
 
 	for _, pkg := range pkgs {
-		res, lerr := dates.Lookup(ctx, deps.History, deps.Cache, pkg.Kind, pkg.Tap, pkg.Name, pkg.Version, pkg.SourcePath, *offline)
+		res, lerr := dates.Lookup(ctx, deps.History, deps.Cache, pkg.Kind, pkg.Tap, pkg.Name, pkg.Version, pkg.SourcePath, offline)
 		d := decide.Evaluate(p, decide.Subject{Name: pkg.Name, Tap: pkg.Tap, Version: pkg.Version,
 			Published: res.Time, DateSource: res.Source}, deps.Now())
 		reasons := d.Reasons
