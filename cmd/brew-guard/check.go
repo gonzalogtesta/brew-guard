@@ -136,6 +136,22 @@ func checkCmd(args []string, stdout, stderr io.Writer, env func(string) string) 
 		fmt.Fprintln(stderr, "check:", err)
 		return exitError
 	}
+	if *outdated && !*noDeps {
+		extra, v, err := brewdata.ExpandDeps(ctx, deps.Runner, pkgs)
+		if err != nil {
+			fmt.Fprintln(stderr, "check:", err)
+			return exitError
+		}
+		if len(extra) > 0 {
+			var en []string
+			for _, e := range extra {
+				en = append(en, e.Name)
+				via[e.Name] = v[e.Name]
+			}
+			fmt.Fprintf(stdout, "upgrading would also install %d new %s: %s\n", len(en), plural(len(en)), strings.Join(en, ", "))
+			pkgs = append(pkgs, extra...)
+		}
+	}
 
 	code := exitOK
 	worse := func(c int) {

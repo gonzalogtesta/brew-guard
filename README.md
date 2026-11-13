@@ -79,7 +79,13 @@ brew what it would install (`brew install --dry-run`, which installs nothing),
 prints how many packages come with it and which ones, and then checks every one
 of them with the same policy. If one dependency is too young, the whole result
 is a block and the output says which package it is. `--no-deps` checks only the
-names you gave. `--outdated` doesn't expand dependencies yet.
+names you gave.
+
+`--outdated` does the same for upgrades, but differently: Homebrew's upgrade
+dry-run prints several sections that I can't rely on, so it reads the formula
+metadata instead. It follows the runtime dependencies that aren't installed
+yet and checks those too. That is an estimate, not Homebrew's own plan: build
+only dependencies are left out and casks aren't expanded.
 
 If the release date can't be found (rate limit, no matching commit, no network)
 the date is unknown and that counts as a failure. `--offline` only uses dates

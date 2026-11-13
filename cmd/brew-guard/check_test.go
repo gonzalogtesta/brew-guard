@@ -382,3 +382,36 @@ func TestCheckUnreadableDryRunIsAnError(t *testing.T) {
 		t.Fatalf("code=%d err=%s", code, errs)
 	}
 }
+
+func TestCheckOutdatedChecksNewDependencies(t *testing.T) {
+	h := setup(t, 30, "")
+	h.runner.out["info --json=v2 jq"] = `{"formulae":[{"name":"jq","tap":"homebrew/core","versions":{"stable":"1.8.2"},` +
+		`"ruby_source_path":"Formula/j/jq.rb","dependencies":["oniguruma","zlib"],"installed":[{"version":"1.8.1"}]}],"casks":[]}`
+	h.runner.out["info --json=v2 oniguruma zlib"] = `{"formulae":[` +
+		`{"name":"oniguruma","tap":"homebrew/core","versions":{"stable":"6.9.10"},"ruby_source_path":"Formula/o/oniguruma.rb","installed":[]},` +
+		`{"name":"zlib","tap":"homebrew/core","versions":{"stable":"1.3"},"ruby_source_path":"Formula/z/zlib.rb","installed":[{"version":"1.3"}]}],"casks":[]}`
+	h.hist.h = []dates.Commit{
+		{SHA: "aaaaaaaaaaaa", Time: checkNow.AddDate(0, 0, -30), Message: "jq 1.8.2"},
+		{SHA: "bbbbbbbbbbbb", Time: checkNow.AddDate(0, 0, -2), Message: "oniguruma 6.9.10"},
+	}
+	code, out, errs := runCmd(h.env, "check", "--outdated")
+	if code != 1 || errs != "" {
+		t.Fatalf("a young new dependency must block, code=%d err=%s out=%s", code, errs, out)
+	}
+	for _, want := range []string{"upgrading would also install 1 new package: oniguruma", "BLOCK  oniguruma", "installed as a dependency of jq"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("output lacks %q:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "zlib") {
+		t.Fatalf("an installed dependency is not new:\n%s", out)
+	}
+}
+
+func TestCheckOutdatedNoDeps(t *testing.T) {
+	h := setup(t, 30, "")
+	h.runner.out["info --json=v2 jq"] = `{"formulae":[{"name":"jq","tap":"homebrew/core","versions":{"stable":"1.8.2"},"ruby_source_path":"Formula/j/jq.rb","dependencies":["oniguruma"]}],"casks":[]}`
+	if code, out, _ := runCmd(h.env, "check", "--outdated", "--no-deps"); code != 0 || strings.Contains(out, "oniguruma") {
+		t.Fatalf("code=%d out=%s", code, out)
+	}
+}
