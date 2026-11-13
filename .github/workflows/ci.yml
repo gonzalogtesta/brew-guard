@@ -1,0 +1,36 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# No third-party actions: the code is fetched with git and built with the Go
+# toolchain pinned in go.mod. See docs/PINNED-VERSIONS.md.
+permissions: {}
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    env:
+      CGO_ENABLED: "0"
+      GOTOOLCHAIN: go1.27.3
+    steps:
+      - name: Fetch the code
+        run: |
+          git clone --no-checkout "https://github.com/${GITHUB_REPOSITORY}.git" .
+          git fetch origin "${GITHUB_SHA}"
+          git checkout --detach "${GITHUB_SHA}"
+      - name: Format
+        run: test -z "$(gofmt -l .)"
+      - name: Vet
+        run: go vet ./...
+      - name: Test
+        run: go test ./...
+      - name: Modules are tidy and have no dependencies
+        run: |
+          go mod tidy
+          git diff --exit-code go.mod
+          test ! -e go.sum

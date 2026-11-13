@@ -1,0 +1,33 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+# No third-party actions. The binaries are built by scripts/build-release.sh
+# with the toolchain pinned in go.mod and published with the gh tool that is
+# already on the runner.
+permissions: {}
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Fetch the code
+        run: |
+          git clone --no-checkout "https://github.com/${GITHUB_REPOSITORY}.git" .
+          git fetch origin "${GITHUB_SHA}"
+          git checkout --detach "${GITHUB_SHA}"
+      - name: Test
+        run: GOTOOLCHAIN=go1.27.3 go test ./...
+      - name: Build
+        run: scripts/build-release.sh "${GITHUB_REF_NAME}"
+      - name: Publish
+        run: |
+          gh release create "${GITHUB_REF_NAME}" dist/* \
+            --repo "${GITHUB_REPOSITORY}" --verify-tag --generate-notes \
+            --title "${GITHUB_REF_NAME}"
