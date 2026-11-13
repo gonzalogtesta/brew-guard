@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -52,6 +53,17 @@ func (g *GitHub) client() *http.Client {
 			return nil
 		},
 	}
+}
+
+// RateLimitError says GitHub's request limit is used up. Reset is when it
+// starts again, zero if GitHub did not say.
+type RateLimitError struct{ Reset time.Time }
+
+func (e *RateLimitError) Error() string {
+	if e.Reset.IsZero() {
+		return "GitHub rate limit reached; set GITHUB_TOKEN or use the cache"
+	}
+	return "GitHub rate limit reached, it resets at " + e.Reset.Local().Format("15:04") + "; set GITHUB_TOKEN or use the cache"
 }
 
 type apiCommit struct {
@@ -112,8 +124,13 @@ func (g *GitHub) fetch(ctx context.Context, u string) ([]apiCommit, error) {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		if resp.StatusCode == http.StatusForbidden && resp.Header.Get("X-RateLimit-Remaining") == "0" {
-			return nil, errors.New("GitHub rate limit reached; set GITHUB_TOKEN or use the cache")
+		if resp.StatusCode == http.StatusTooManyRequests ||
+			(resp.StatusCode == http.StatusForbidden && resp.Header.Get("X-RateLimit-Remaining") == "0") {
+			e := &RateLimitError{}
+			if sec, err := strconv.ParseInt(resp.Header.Get("X-RateLimit-Reset"), 10, 64); err == nil && sec > 0 {
+				e.Reset = time.Unix(sec, 0)
+			}
+			return nil, e
 		}
 		return nil, fmt.Errorf("GitHub API: %s", resp.Status)
 	}

@@ -434,3 +434,61 @@ func TestCheckNamesTheRequestedPackageWhenOnlyDependenciesAreNew(t *testing.T) {
 		t.Fatalf("the summary must name jq:\n%s", out)
 	}
 }
+
+// limitedHistory answers the first lookups, then reports the GitHub limit.
+type limitedHistory struct {
+	calls, okCalls int
+	reset          time.Time
+}
+
+func (l *limitedHistory) History(_ context.Context, _, path string) ([]dates.Commit, error) {
+	l.calls++
+	if l.calls > l.okCalls {
+		return nil, &dates.RateLimitError{Reset: l.reset}
+	}
+	name := strings.TrimSuffix(filepath.Base(path), ".rb")
+	return []dates.Commit{{SHA: "abcdef123456", Time: checkNow.AddDate(0, 0, -30), Message: name + " 1.0"}}, nil
+}
+
+func TestCheckStopsAskingGitHubAfterTheLimit(t *testing.T) {
+	h := setup(t, 30, "")
+	pkg := func(n string) string {
+		return `{"name":"` + n + `","tap":"homebrew/core","versions":{"stable":"1.0"},"ruby_source_path":"Formula/` + n[:1] + `/` + n + `.rb"}`
+	}
+	h.runner.out["info --json=v2 aa bb cc dd"] = `{"formulae":[` + pkg("aa") + "," + pkg("bb") + "," + pkg("cc") + "," + pkg("dd") + `],"casks":[]}`
+	lim := &limitedHistory{okCalls: 1, reset: time.Date(2026, 11, 13, 20, 30, 0, 0, time.UTC)}
+	old := newCheckDeps
+	d, _ := old(func(string) string { return "" })
+	d.History = lim
+	newCheckDeps = func(func(string) string) (checkDeps, error) { return d, nil }
+
+	code, out, _ := runCmd(h.env, "check", "--no-deps", "aa", "bb", "cc", "dd")
+	if code != 1 {
+		t.Fatalf("unchecked packages must block, code=%d\n%s", code, out)
+	}
+	if lim.calls != 2 {
+		t.Fatalf("after the limit nothing more may be asked: %d calls", lim.calls)
+	}
+	for _, want := range []string{"ALLOW  aa", "BLOCK  bb", "BLOCK  cc", "BLOCK  dd", "3 of 4 packages could not be checked",
+		"bb, cc, dd", "GITHUB_TOKEN raises the limit but is optional", "the dates found so far are saved"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("output lacks %q:\n%s", want, out)
+		}
+	}
+	// What was found is saved: the next run needs no request for aa.
+	lim2 := &limitedHistory{okCalls: 10}
+	d.History = lim2
+	runCmd(h.env, "check", "--no-deps", "aa")
+	if lim2.calls != 0 {
+		t.Fatalf("aa must come from the cache, got %d requests", lim2.calls)
+	}
+}
+
+func TestFirstNames(t *testing.T) {
+	if got := firstNames([]string{"a", "b"}, 6); got != "a, b" {
+		t.Fatal(got)
+	}
+	if got := firstNames([]string{"a", "b", "c", "d"}, 2); got != "a, b and 2 more" {
+		t.Fatal(got)
+	}
+}

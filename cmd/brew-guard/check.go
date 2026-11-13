@@ -219,8 +219,23 @@ func evaluate(ctx context.Context, stdout, stderr io.Writer, p policy.Policy, de
 		}
 	}
 
+	// Once GitHub says the limit is used up, stop asking: the rest are looked
+	// up in the cache only, and what is missing is reported once at the end.
+	var limited bool
+	var resetAt time.Time
+	var skipped []string
 	for _, pkg := range pkgs {
-		res, lerr := dates.Lookup(ctx, deps.History, deps.Cache, pkg.Kind, pkg.Tap, pkg.Name, pkg.Version, pkg.SourcePath, offline)
+		res, lerr := dates.Lookup(ctx, deps.History, deps.Cache, pkg.Kind, pkg.Tap, pkg.Name, pkg.Version, pkg.SourcePath, offline || limited)
+		if limited && lerr != nil && !offline {
+			lerr = errNotChecked
+		}
+		var rl *dates.RateLimitError
+		if errors.As(lerr, &rl) {
+			limited, resetAt = true, rl.Reset
+		}
+		if limited && lerr != nil && !offline {
+			skipped = append(skipped, pkg.Name)
+		}
 		d := decide.Evaluate(p, decide.Subject{Name: pkg.Name, Tap: pkg.Tap, Version: pkg.Version,
 			Published: res.Time, DateSource: res.Source}, deps.Now())
 		reasons := d.Reasons
@@ -261,6 +276,15 @@ func evaluate(ctx context.Context, stdout, stderr io.Writer, p policy.Policy, de
 		record(audit.Entry{Package: pkg.Name, Tap: pkg.Tap, Version: pkg.Version, Action: string(d.Action), Reasons: reasons})
 	}
 
+	if len(skipped) > 0 {
+		when := "later"
+		if !resetAt.IsZero() {
+			when = "after " + resetAt.Local().Format("15:04")
+		}
+		fmt.Fprintf(stdout, "\n%d of %d packages could not be checked because GitHub's request limit was reached (%s).\n",
+			len(skipped), len(pkgs), firstNames(skipped, 6))
+		fmt.Fprintf(stdout, "Run the same command again %s: the dates found so far are saved. A GITHUB_TOKEN raises the limit but is optional.\n", when)
+	}
 	if deps.Cache != nil {
 		if err := deps.Cache.Save(); err != nil {
 			fmt.Fprintln(stderr, "warning: date cache not saved:", err)
@@ -268,6 +292,8 @@ func evaluate(ctx context.Context, stdout, stderr io.Writer, p policy.Policy, de
 	}
 	return code
 }
+
+var errNotChecked = errors.New("not checked, GitHub's request limit was reached")
 
 // loadPolicy reads the policy file, or falls back to the secure defaults when
 // there is none. A file that exists but is invalid is always an error.
@@ -336,4 +362,12 @@ func outdatedNames(o []brewdata.Outdated) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+// firstNames joins up to n names and says how many more there are.
+func firstNames(names []string, n int) string {
+	if len(names) <= n {
+		return strings.Join(names, ", ")
+	}
+	return fmt.Sprintf("%s and %d more", strings.Join(names[:n], ", "), len(names)-n)
 }

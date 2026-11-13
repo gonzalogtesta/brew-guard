@@ -3,6 +3,7 @@ package dates
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -218,6 +219,28 @@ func TestGitHubHistoryFirstPageFailureIsAnError(t *testing.T) {
 	defer srv.Close()
 	if _, err := (&GitHub{BaseURL: srv.URL}).History(context.Background(), "o/r", "p"); err == nil {
 		t.Fatal("no data at all must stay an error")
+	}
+}
+
+func TestGitHubRateLimitCarriesTheResetTime(t *testing.T) {
+	reset := time.Date(2026, 11, 13, 20, 30, 0, 0, time.UTC)
+	for name, status := range map[string]int{"403": 403, "429": 429} {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("X-RateLimit-Remaining", "0")
+			w.Header().Set("X-RateLimit-Reset", fmt.Sprint(reset.Unix()))
+			w.WriteHeader(status)
+		}))
+		_, err := (&GitHub{BaseURL: srv.URL}).History(context.Background(), "o/r", "p")
+		srv.Close()
+		var rl *RateLimitError
+		if !errors.As(err, &rl) || !rl.Reset.Equal(reset) {
+			t.Errorf("%s: got %v", name, err)
+		} else if !strings.Contains(err.Error(), "resets at") {
+			t.Errorf("%s: message lacks the time: %v", name, err)
+		}
+	}
+	if msg := (&RateLimitError{}).Error(); strings.Contains(msg, "resets at") || !strings.Contains(msg, "rate limit") {
+		t.Fatalf("no reset time given: %q", msg)
 	}
 }
 
