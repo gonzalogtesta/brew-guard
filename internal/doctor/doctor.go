@@ -51,6 +51,10 @@ func Run(env func(string) string, euid int) []Check {
 		out = append(out, Check{s.Name + " set", ok, d})
 	}
 	out = append(out, analytics())
+	// Homebrew refuses to load untrusted third-party taps unless this is set.
+	// Setting it switches that protection off, so it is reported as a failure.
+	out = append(out, Check{"tap trust is not disabled", env("HOMEBREW_NO_REQUIRE_TAP_TRUST") == "",
+		tapTrustDetail(env("HOMEBREW_NO_REQUIRE_TAP_TRUST") == "")})
 	return out
 }
 
@@ -75,4 +79,11 @@ func analytics() Check {
 		return Check{"analytics disabled in " + repo, false, "run: brew analytics off"}
 	}
 	return Check{"Homebrew repository found", false, fmt.Sprintf("looked in %v", brewRepos)}
+}
+
+func tapTrustDetail(ok bool) string {
+	if ok {
+		return ""
+	}
+	return "unset HOMEBREW_NO_REQUIRE_TAP_TRUST"
 }
