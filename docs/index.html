@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>brew-guard</title>
+<meta name="description" content="A security and privacy policy layer for Homebrew.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main>
+<h1>brew-guard</h1>
+<p class="lead">Homebrew, but with a security policy and without the telemetry.</p>
+
+<p>
+I like Homebrew and I don't want to replace it. What bothers me is that it
+installs and upgrades whatever is out there, minutes after release, and nobody
+checks if it is any good. brew-guard sits next to brew and applies rules you
+set. It never patches Homebrew's files.
+</p>
+
+<p class="note"><strong>Early development.</strong> There is a <code>check</code>
+command that tells you if a package passes your policy. Nothing stops a
+<code>brew install</code> by itself yet. Don't count on it to protect you
+today.</p>
+
+<h2>What it does today</h2>
+<ul>
+<li>Refuses versions younger than N days (default 12), with per-package exceptions that expire.</li>
+<li>Tap allowlist. Third party taps are flagged for review.</li>
+<li>Finds the release date from the homebrew-core / homebrew-cask commit history, not from a bottle rebuild.</li>
+<li>Checks that Homebrew analytics are off (<code>doctor</code>) and prints the settings to turn them off (<code>harden</code>).</li>
+<li>Writes an audit log of every decision.</li>
+</ul>
+
+<h2>Policy</h2>
+<pre><code>min_age_days = 12
+mode = "block"            # or "warn"
+allowed_taps = ["homebrew/core", "homebrew/cask"]
+block_telemetry = true
+
+[[exception]]
+package = "jq"
+reason = "needed for a security fix"
+expires = 2026-12-01</code></pre>
+<p>The same settings work as JSON or plain text. Unknown keys are an error, so a
+typo can't quietly turn a rule off.</p>
+
+<h2>Try it</h2>
+<pre><code>git clone https://github.com/gonzalogtesta/brew-guard
+cd brew-guard
+go run ./cmd/brew-guard check jq</code></pre>
+<p>You need the Go version pinned in <code>go.mod</code>.</p>
+
+<h2>Network</h2>
+<p>No telemetry. The only host brew-guard talks to is
+<code>api.github.com</code>, read-only, to get the commit history of a formula or
+cask. An optional token is only sent to that host.</p>
+
+<h2>Dependencies</h2>
+<p>None, standard library only. Versions are pinned, see
+<a href="https://github.com/gonzalogtesta/brew-guard/blob/main/docs/PINNED-VERSIONS.md">PINNED-VERSIONS.md</a>.</p>
+
+<h2>Limits</h2>
+<p>It lowers risk, it doesn't prove a package is safe. It won't help if
+Homebrew's own infrastructure is compromised, if the malicious code is old, or if
+malware already runs as your user.</p>
+
+<h2>Links</h2>
+<ul>
+<li><a href="https://github.com/gonzalogtesta/brew-guard">Source code</a></li>
+<li><a href="https://github.com/gonzalogtesta/brew-guard/blob/main/docs/HARDENING.md">Protect your Homebrew</a></li>
+<li><a href="https://github.com/gonzalogtesta/brew-guard/blob/main/SECURITY.md">Security policy</a></li>
+<li><a href="https://github.com/gonzalogtesta/brew-guard/blob/main/LICENSE">MIT licence</a></li>
+</ul>
+</main>
+</body>
+</html>
