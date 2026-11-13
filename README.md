@@ -235,8 +235,18 @@ shasum -a 256 -c SHA256SUMS --ignore-missing
 That only proves the file is the one that was published. There is no signature
 or build provenance yet, so it doesn't prove who built it. You can also build
 it yourself from the tag with the same script and compare the checksums, the
-build is reproducible. The binaries aren't notarized by Apple, so macOS may ask
-you to confirm the first run.
+build is reproducible.
+
+The binaries aren't notarized by Apple. A file downloaded with a browser or
+curl gets a quarantine flag, and macOS kills it on the first run (or asks you
+to confirm it in System Settings, Privacy & Security). Once the checksum is
+verified, you can remove the flag yourself:
+
+```
+xattr -d com.apple.quarantine ~/.local/bin/brew-guard
+```
+
+Only do this for a file whose checksum you checked.
 
 ## Build and test
 
