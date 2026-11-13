@@ -99,7 +99,16 @@ yet and checks those too. That is an estimate, not Homebrew's own plan: build
 only dependencies are left out and casks aren't expanded.
 
 If the release date can't be found (rate limit, no matching commit, no network)
-the date is unknown and that counts as a failure. `--offline` only uses dates
+the date is unknown and that counts as a failure.
+
+GitHub lets you make 60 requests an hour without a token, and each package
+needs about one. Dates never change, so every date found is saved in the cache
+and only asked once. When the limit is reached, brew-guard stops asking, checks
+the rest against the cache only, and tells you how many packages are left and
+when the limit resets (the packages it couldn't check are blocked, never
+guessed). Run it again after that time and it continues where it stopped. A
+`GITHUB_TOKEN` raises the limit to 5000 an hour, but you don't need one for
+installing a few packages. `--offline` only uses dates
 already in the cache. It restricts brew-guard's own GitHub lookups, not brew's
 dry-run.
 
