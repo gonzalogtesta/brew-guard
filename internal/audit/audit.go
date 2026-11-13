@@ -3,6 +3,7 @@ package audit
 
 import (
 	"encoding/json"
+	"io"
 	"os"
 	"path/filepath"
 	"time"
@@ -27,14 +28,19 @@ func Append(path string, e Entry) error {
 	if err != nil {
 		return err
 	}
+	return writeEntry(f, e)
+}
+
+// writeEntry writes e as one JSON line to w and always closes w.
+func writeEntry(w io.WriteCloser, e Entry) error {
 	line, err := json.Marshal(e)
 	if err != nil {
-		f.Close()
+		w.Close()
 		return err
 	}
-	if _, err := f.Write(append(line, '\n')); err != nil {
-		f.Close()
+	if _, err := w.Write(append(line, '\n')); err != nil {
+		w.Close()
 		return err
 	}
-	return f.Close()
+	return w.Close()
 }
