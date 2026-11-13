@@ -45,6 +45,7 @@ container. A real install on macOS, and casks, are not tested yet.
 
 - showing a third party tap's code and diff before installing, and `brew trust`
 - pinning the real brew against replacement, and taking over the `brew` symlink
+- telling a half finished Homebrew update apart from tampering (`repair` reports what differs, it can't say why)
 - attestation checks and change alerts
 - SBOM and vulnerability audit (OSV)
 - signed releases and build provenance
@@ -152,6 +153,33 @@ Homebrew's folders is renamed or changed. `shim status` tells you which
 This protects the normal case, you typing `brew install`. It doesn't stop
 something that calls Homebrew's brew by its full path, and it doesn't stop
 malware running as you from editing your `PATH`. Run `shim status` now and then.
+
+## repair
+
+```
+brew-guard repair
+brew-guard repair --apply
+```
+
+Checks if the Homebrew folder itself was damaged or altered. Without `--apply`
+it only reads. It tells you:
+
+- if the git config of the checkout has settings that can run programs (hooks,
+  filters, aliases, credential helpers, URL rewrites, a file system monitor
+  that is not `false`). If it does, it doesn't run git there at all.
+- if git hooks are installed (a normal Homebrew checkout has none)
+- which tracked files are missing or changed, and which extra files sit under
+  `Library/Homebrew`, with the first ones listed
+- if the commit is an official Homebrew release, by asking GitHub for the
+  release tags (`--offline` skips this)
+
+`--apply` backs up the whole folder to `~/.local/state/brew-guard/backups`,
+fetches the release tags from `github.com/Homebrew/brew` (never from the
+remote in the checkout's config), and resets to the newest release that is at
+least `min_age_days` old. It asks for a yes first, `--yes` skips that. Extra
+files are removed only under `Library/Homebrew`. Installed packages and your
+taps are not touched. If you didn't expect the changes it found, don't treat
+the repair as a fix for whatever caused them: look at the backup first.
 
 Exit codes:
 
