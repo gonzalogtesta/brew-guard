@@ -124,6 +124,25 @@ brew-guard brew upgrade
 The real brew must be a different file than brew-guard. If the `brew` it finds
 is brew-guard itself it stops instead of calling itself.
 
+### The brew link
+
+```
+brew-guard shim install
+brew-guard shim status
+brew-guard shim uninstall
+```
+
+`shim install` creates a link named `brew` in `~/.local/bin` (change it with
+`--dir`) that points to brew-guard. It doesn't edit your shell profile, it
+only tells you the line to add so that directory comes before Homebrew's in
+`PATH`. It won't overwrite a `brew` that is not its own link. Nothing inside
+Homebrew's folders is renamed or changed. `shim status` tells you which
+`brew` your shell really runs.
+
+This protects the normal case, you typing `brew install`. It doesn't stop
+something that calls Homebrew's brew by its full path, and it doesn't stop
+malware running as you from editing your `PATH`. Run `shim status` now and then.
+
 Exit codes:
 
 | code | meaning |
