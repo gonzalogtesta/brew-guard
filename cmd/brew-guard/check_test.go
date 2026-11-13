@@ -483,3 +483,12 @@ func TestCheckStopsAskingGitHubAfterTheLimit(t *testing.T) {
 		t.Fatalf("aa must come from the cache, got %d requests", lim2.calls)
 	}
 }
+
+func TestFirstNames(t *testing.T) {
+	if got := firstNames([]string{"a", "b"}, 6); got != "a, b" {
+		t.Fatal(got)
+	}
+	if got := firstNames([]string{"a", "b", "c", "d"}, 2); got != "a, b and 2 more" {
+		t.Fatal(got)
+	}
+}

@@ -282,7 +282,7 @@ func evaluate(ctx context.Context, stdout, stderr io.Writer, p policy.Policy, de
 			when = "after " + resetAt.Local().Format("15:04")
 		}
 		fmt.Fprintf(stdout, "\n%d of %d packages could not be checked because GitHub's request limit was reached (%s).\n",
-			len(skipped), len(pkgs), strings.Join(skipped, ", "))
+			len(skipped), len(pkgs), firstNames(skipped, 6))
 		fmt.Fprintf(stdout, "Run the same command again %s: the dates found so far are saved. A GITHUB_TOKEN raises the limit but is optional.\n", when)
 	}
 	if deps.Cache != nil {
@@ -362,4 +362,12 @@ func outdatedNames(o []brewdata.Outdated) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+// firstNames joins up to n names and says how many more there are.
+func firstNames(names []string, n int) string {
+	if len(names) <= n {
+		return strings.Join(names, ", ")
+	}
+	return fmt.Sprintf("%s and %d more", strings.Join(names[:n], ", "), len(names)-n)
 }
