@@ -118,6 +118,24 @@ homebrew/cask).
 
 Third party taps have no date source yet, so they come out as unknown.
 
+## Releases
+
+A tag like `v0.1.0` starts the release workflow. It runs the tests, builds
+the binaries for macOS and Linux (amd64 and arm64) with
+`scripts/build-release.sh`, and publishes them with a `SHA256SUMS` file.
+
+To check a download:
+
+```
+shasum -a 256 -c SHA256SUMS --ignore-missing
+```
+
+That only proves the file is the one that was published. There is no signature
+or build provenance yet, so it doesn't prove who built it. You can also build
+it yourself from the tag with the same script and compare the checksums, the
+build is reproducible. The binaries aren't notarized by Apple, so macOS may ask
+you to confirm the first run.
+
 ## Build and test
 
 You need the Go version pinned in `go.mod` (see
