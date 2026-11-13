@@ -45,19 +45,24 @@ type Package struct {
 	HasCaveats    bool     // brew prints caveats after install
 	ArtifactKinds []string // cask artifact types, sorted (app, pkg, binary, ...)
 	NoCheck       bool     // cask checksum is "no_check": the download is not verified
+
+	Dependencies []string // formulae it needs at run time (direct ones, as brew lists them)
+	Installed    bool     // some version is installed on this machine
 }
 
 type infoJSON struct {
 	Formulae []struct {
-		Name        string          `json:"name"`
-		Tap         string          `json:"tap"`
-		Revision    int             `json:"revision"`
-		SourcePath  string          `json:"ruby_source_path"`
-		Deprecated  bool            `json:"deprecated"`
-		Disabled    bool            `json:"disabled"`
-		PostInstall bool            `json:"post_install_defined"`
-		Service     json.RawMessage `json:"service"`
-		Caveats     *string         `json:"caveats"`
+		Name        string            `json:"name"`
+		Tap         string            `json:"tap"`
+		Revision    int               `json:"revision"`
+		SourcePath  string            `json:"ruby_source_path"`
+		Deprecated  bool              `json:"deprecated"`
+		Disabled    bool              `json:"disabled"`
+		PostInstall bool              `json:"post_install_defined"`
+		Service     json.RawMessage   `json:"service"`
+		Caveats     *string           `json:"caveats"`
+		Deps        []string          `json:"dependencies"`
+		Installed   []json.RawMessage `json:"installed"`
 		Versions    struct {
 			Stable string `json:"stable"`
 		} `json:"versions"`
@@ -92,7 +97,8 @@ func ParseInfo(b []byte) ([]Package, error) {
 		out = append(out, Package{Name: f.Name, Kind: dates.Formula, Tap: f.Tap, Version: f.Versions.Stable,
 			Revision: f.Revision, SourcePath: f.SourcePath, URL: f.URLs.Stable.URL, Checksum: f.URLs.Stable.Checksum,
 			Deprecated: f.Deprecated, Disabled: f.Disabled, PostInstall: f.PostInstall,
-			HasService: hasValue(f.Service), HasCaveats: f.Caveats != nil && strings.TrimSpace(*f.Caveats) != ""})
+			HasService: hasValue(f.Service), HasCaveats: f.Caveats != nil && strings.TrimSpace(*f.Caveats) != "",
+			Dependencies: f.Deps, Installed: len(f.Installed) > 0})
 	}
 	for _, c := range in.Casks {
 		out = append(out, Package{Name: c.Token, Kind: dates.Cask, Tap: c.Tap, Version: c.Version,
