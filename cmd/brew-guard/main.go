@@ -10,7 +10,8 @@ import (
 	"github.com/gonzalogtesta/brew-guard/internal/policy"
 )
 
-const version = "0.0.1-dev"
+// version is set at build time with -ldflags "-X main.version=...".
+var version = "0.0.1-dev"
 
 // doctorRun is a variable so tests can substitute fixed checks.
 var doctorRun = doctor.Run
