@@ -46,6 +46,8 @@ func run(args []string, stdout, stderr io.Writer, env func(string) string) int {
 		return checkCmd(args[1:], stdout, stderr, env)
 	case "brew":
 		return wrapCmd(args[1:], stdout, stderr, env)
+	case "shim":
+		return shimCmd(args[1:], stdout, stderr, env)
 	default:
 		usage(stderr)
 		return 2
@@ -53,7 +55,7 @@ func run(args []string, stdout, stderr io.Writer, env func(string) string) int {
 }
 
 func usage(w io.Writer) {
-	fmt.Fprintln(w, "usage: brew-guard version | policy validate [file] | doctor | harden | check [--offline] [--no-deps] [--policy file] (--outdated | name...) | brew <brew arguments>")
+	fmt.Fprintln(w, "usage: brew-guard version | policy validate [file] | doctor | harden | check [--offline] [--no-deps] [--policy file] (--outdated | name...) | brew <brew arguments> | shim install|uninstall|status")
 }
 
 func configDir(env func(string) string) string {
