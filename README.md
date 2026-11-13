@@ -95,6 +95,35 @@ dry-run.
 If `block_telemetry` is on and Homebrew analytics are not disabled, the check
 fails too.
 
+## Using it as brew
+
+If the program is called `brew` (a link or a copy with that name), or you run
+`brew-guard brew ...`, it works as a wrapper around the real brew:
+
+```
+brew-guard brew install jq
+brew-guard brew upgrade
+```
+
+- `install`, `reinstall` and `upgrade` run the same check as `check`, on the
+  packages and on everything they would bring. Only if all of it passes does
+  the real brew run, with exactly the names that were checked. Before it runs,
+  the set is resolved a second time. If it changed, nothing runs.
+- Options are limited to a short list (`--cask`, `--force`, `--verbose` and a
+  few more). Things like `--HEAD` or `--no-quarantine` are refused, and so are
+  paths, URLs and `user/tap/name`, because the policy can't see what they do.
+- Read-only commands (`info`, `list`, `outdated`, `search`, `update`, ...) go
+  straight to the real brew. `update` still works, so you can download all
+  formulae and decide later what to install.
+- Anything else (`bundle`, `tap`, `cask`, ...) is refused. It could install
+  something that wasn't checked. Use the real brew directly if you mean it.
+- brew runs with a clean environment: only a few variables of yours go through,
+  and every `HOMEBREW_*` you set is dropped, so a variable that redirects
+  downloads can't reach it. Analytics and auto update are off.
+
+The real brew must be a different file than brew-guard. If the `brew` it finds
+is brew-guard itself it stops instead of calling itself.
+
 Exit codes:
 
 | code | meaning |

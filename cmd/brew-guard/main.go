@@ -17,7 +17,12 @@ var version = "0.0.1-dev"
 var doctorRun = doctor.Run
 
 func main() {
-	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr, os.Getenv))
+	args := os.Args[1:]
+	// Called through a link named brew: act as the brew wrapper.
+	if filepath.Base(os.Args[0]) == "brew" {
+		args = append([]string{"brew"}, args...)
+	}
+	os.Exit(run(args, os.Stdout, os.Stderr, os.Getenv))
 }
 
 // run executes the command in args (program name excluded) and returns the
@@ -39,6 +44,8 @@ func run(args []string, stdout, stderr io.Writer, env func(string) string) int {
 		return hardenCmd(stdout, env)
 	case "check":
 		return checkCmd(args[1:], stdout, stderr, env)
+	case "brew":
+		return wrapCmd(args[1:], stdout, stderr, env)
 	default:
 		usage(stderr)
 		return 2
@@ -46,7 +53,7 @@ func run(args []string, stdout, stderr io.Writer, env func(string) string) int {
 }
 
 func usage(w io.Writer) {
-	fmt.Fprintln(w, "usage: brew-guard version | policy validate [file] | doctor | harden | check [--offline] [--policy file] (--outdated | name...)")
+	fmt.Fprintln(w, "usage: brew-guard version | policy validate [file] | doctor | harden | check [--offline] [--no-deps] [--policy file] (--outdated | name...) | brew <brew arguments>")
 }
 
 func configDir(env func(string) string) string {

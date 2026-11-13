@@ -4,9 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 )
+
+var flagRe = regexp.MustCompile(`^--?[A-Za-z][A-Za-z-]*$`)
 
 // SetItem is one package brew says it would install.
 type SetItem struct {
@@ -19,11 +22,17 @@ type SetItem struct {
 // the packages themselves and every dependency that is not installed yet.
 // It runs `brew install --dry-run`, which installs nothing. An empty result
 // means brew had nothing to install (for example everything is installed).
-func InstallSet(ctx context.Context, r Runner, names ...string) ([]SetItem, error) {
+func InstallSet(ctx context.Context, r Runner, flags []string, names ...string) ([]SetItem, error) {
 	if len(names) == 0 {
 		return nil, errors.New("no package names given")
 	}
 	args := []string{"install", "--dry-run"}
+	for _, f := range flags {
+		if !flagRe.MatchString(f) {
+			return nil, fmt.Errorf("invalid option %q", f)
+		}
+		args = append(args, f)
+	}
 	for _, n := range names {
 		if !ValidName(n) {
 			return nil, fmt.Errorf("invalid package name %q", n)

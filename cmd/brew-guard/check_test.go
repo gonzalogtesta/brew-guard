@@ -50,6 +50,7 @@ type harness struct {
 	hist   *fakeHistory
 	env    map[string]string
 	dir    string
+	execs  [][]string // arguments brew would have been started with
 }
 
 // setup installs fakes. The package "jq 1.8.2" was introduced `ageDays` ago.
@@ -78,7 +79,8 @@ func setup(t *testing.T, ageDays int, policyBody string) *harness {
 	newCheckDeps = func(func(string) string) (checkDeps, error) {
 		return checkDeps{Runner: h.runner, History: h.hist,
 			Cache: dates.OpenCache(filepath.Join(dir, "cache.json")), Now: func() time.Time { return checkNow },
-			AuditPath: filepath.Join(dir, "audit.jsonl")}, nil
+			AuditPath: filepath.Join(dir, "audit.jsonl"),
+			Exec:      func(a []string) error { h.execs = append(h.execs, a); return nil }}, nil
 	}
 	analyticsCheck = func() doctor.Check { return doctor.Check{Name: "analytics", OK: true} }
 	t.Cleanup(func() { newCheckDeps, analyticsCheck = oldDeps, oldAn })
