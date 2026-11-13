@@ -1,0 +1,17 @@
+==> Would install 1 formula:
+jq 1.8.2
+==> Downloading https://ghcr.io/v2/homebrew/core/jq/manifests/1.8.2-1
+==> Would install 13 dependencies for jq:
+linux-headers@6.8  6.8.12_1
+glibc              2.39_1
+gmp                6.3.0
+isl                0.28
+mpfr               4.2.2
+libmpc             1.4.1
+lz4                1.11.1
+xz                 5.8.4
+zlib-ng-compat     2.3.3_1
+zstd               1.5.7_1
+binutils           2.47
+gcc                16.2.0
+oniguruma          6.9.10
