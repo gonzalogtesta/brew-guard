@@ -34,6 +34,8 @@ func run(args []string, stdout, stderr io.Writer, env func(string) string) int {
 		return policyCmd(args[1:], stdout, stderr, env)
 	case "doctor":
 		return doctorCmd(stdout, env)
+	case "harden":
+		return hardenCmd(stdout, env)
 	case "check":
 		return checkCmd(args[1:], stdout, stderr, env)
 	default:
@@ -43,7 +45,7 @@ func run(args []string, stdout, stderr io.Writer, env func(string) string) int {
 }
 
 func usage(w io.Writer) {
-	fmt.Fprintln(w, "usage: brew-guard version | policy validate [file] | doctor | check [--offline] [--policy file] (--outdated | name...)")
+	fmt.Fprintln(w, "usage: brew-guard version | policy validate [file] | doctor | harden | check [--offline] [--policy file] (--outdated | name...)")
 }
 
 func configDir(env func(string) string) string {

@@ -17,6 +17,21 @@ type Check struct {
 	Detail string
 }
 
+// Setting is an environment variable brew-guard recommends exporting.
+type Setting struct {
+	Name  string
+	Value string
+	Why   string
+}
+
+// Recommended lists the privacy and security settings checked by doctor and
+// printed by harden.
+var Recommended = []Setting{
+	{"HOMEBREW_NO_ANALYTICS", "1", "turns off Homebrew usage analytics"},
+	{"HOMEBREW_NO_AUTO_UPDATE", "1", "no surprise updates before every command"},
+	{"HOMEBREW_NO_INSECURE_REDIRECT", "1", "refuse downloads redirected from https to http"},
+}
+
 // Package variables so tests can point the checks at temporary repositories.
 var (
 	brewRepos = []string{"/opt/homebrew", "/usr/local/Homebrew"}
@@ -27,13 +42,13 @@ var (
 func Run(env func(string) string, euid int) []Check {
 	var out []Check
 	out = append(out, Check{"not running as root", euid != 0, ""})
-	for _, v := range []string{"HOMEBREW_NO_ANALYTICS", "HOMEBREW_NO_AUTO_UPDATE", "HOMEBREW_NO_INSECURE_REDIRECT"} {
-		ok := env(v) != ""
+	for _, s := range Recommended {
+		ok := env(s.Name) != ""
 		d := ""
 		if !ok {
-			d = "export " + v + "=1"
+			d = "export " + s.Name + "=" + s.Value
 		}
-		out = append(out, Check{v + " set", ok, d})
+		out = append(out, Check{s.Name + " set", ok, d})
 	}
 	out = append(out, analytics())
 	return out
