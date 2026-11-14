@@ -5,7 +5,13 @@ that make Homebrew safer and more private today. Where I'm not sure about
 something I say so.
 
 `brew-guard harden` prints the environment settings below, ready to paste.
-`brew-guard doctor` checks them.
+`brew-guard harden --apply` writes them for you, with a backup, and
+`brew-guard harden --undo` puts everything back. `brew-guard doctor` checks them.
+
+One thing I learned the hard way: a terminal that doesn't read your shell
+profile starts brew without these variables, and brew auto-updates every tap,
+third party ones included. Homebrew also reads `~/.homebrew/brew.env`, which
+works in any terminal. `harden --apply` writes that file too.
 
 ## 1. Turn off analytics
 

@@ -19,10 +19,10 @@ checks if it is any good. brew-guard sits next to brew and applies rules you
 set. It never patches Homebrew's files.
 </p>
 
-<p class="note"><strong>Early development, first release is v0.1.0 (unsigned).</strong> With the
+<p class="note"><strong>Early development, latest release is v0.3.0 (unsigned).</strong> With the
 <code>brew</code> link in your <code>PATH</code>, <code>brew install</code>,
 <code>reinstall</code> and <code>upgrade</code> go through your policy first.
-A real install on macOS, and casks, are not tested yet. Don't count on it to
+A real install through the wrapper on macOS, and casks, are not tested yet. Don't count on it to
 protect you today.</p>
 
 <h2>What it does today</h2>
@@ -30,8 +30,8 @@ protect you today.</p>
 <li>Refuses versions younger than N days (default 12), with per-package exceptions that expire.</li>
 <li>Tap allowlist. Third party taps are flagged for review.</li>
 <li>Finds the release date from the homebrew-core / homebrew-cask commit history, not from a bottle rebuild.</li>
-<li>Checks that Homebrew analytics are off (<code>doctor</code>) and prints the settings to turn them off (<code>harden</code>).</li>
-<li>Checks everything an install would bring, not only the package you name. One young dependency blocks the install.</li>
+<li>Checks that Homebrew analytics are off (<code>doctor</code>) and sets them for you (<code>harden --apply</code>): Homebrew's own <code>brew.env</code>, your shell files and the analytics opt-out, with a backup and <code>harden --undo</code> to go back.</li>
+<li>Checks everything an install would bring, not only the package you name. One young dependency blocks the install, and so does a dependency that brew would upgrade to a young version.</li>
 <li>Works as a <code>brew</code> wrapper: <code>install</code>, <code>reinstall</code> and <code>upgrade</code> run only after the check passes, read-only commands pass through, the rest is refused.</li>
 <li>Prints what runs at install time (post-install steps, services, installers) so you can see it before it happens.</li>
 <li><code>repair</code> detects an altered Homebrew folder and can reset it to an official release.</li>
