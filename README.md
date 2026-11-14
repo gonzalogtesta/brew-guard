@@ -9,13 +9,14 @@ set. It never patches Homebrew's files.
 
 ## Status
 
-Early development. The first release is v0.1.0, the binaries are unsigned and
+Early development. The latest release is v0.3.0, the binaries are unsigned and
 unnotarized. Don't count on it to protect you yet.
 
 Once the `brew` link is in your `PATH`, `brew install`, `reinstall` and
 `upgrade` go through your policy first, and so does everything they would pull
-in. I have tested it with fake brew output and against a Linux Homebrew in a
-container. A real install on macOS, and casks, are not tested yet.
+in, including installed dependencies that brew would upgrade. I have tested it
+with fake brew output and against a Linux Homebrew in a container. A real
+install through the wrapper on macOS, and casks, are not tested yet.
 
 ## What is in the repo today
 
@@ -39,7 +40,9 @@ container. A real install on macOS, and casks, are not tested yet.
 - `brew-guard repair`: checks if Homebrew's own folder was altered and can
   reset it to an official release.
 - `brew-guard doctor` and `brew-guard harden`: check privacy settings, including
-  that Homebrew's tap trust is not switched off, and set them for you.
+  that Homebrew's tap trust is not switched off. `harden --apply` sets them
+  (Homebrew's own `brew.env`, your shell files and the analytics opt-out) with
+  a backup, and `harden --undo` puts everything back.
 - `brew-guard policy validate [file]`
 - A reproducible build script and CI and release workflows that use no
   third party actions.
@@ -295,7 +298,7 @@ Third party taps have no date source yet, so they come out as unknown.
 
 ## Releases
 
-A tag like `v0.1.0` starts the release workflow. It runs the tests, builds
+A tag like `v0.3.0` starts the release workflow. It runs the tests, builds
 the binaries for macOS and Linux (amd64 and arm64) with
 `scripts/build-release.sh`, and publishes them with a `SHA256SUMS` file.
 
