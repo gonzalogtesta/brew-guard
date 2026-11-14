@@ -38,8 +38,8 @@ container. A real install on macOS, and casks, are not tested yet.
 - `brew-guard shim install|uninstall|status`: the `brew` link.
 - `brew-guard repair`: checks if Homebrew's own folder was altered and can
   reset it to an official release.
-- `brew-guard doctor` and `brew-guard harden`: check and suggest privacy
-  settings, including that Homebrew's tap trust is not switched off.
+- `brew-guard doctor` and `brew-guard harden`: check privacy settings, including
+  that Homebrew's tap trust is not switched off, and set them for you.
 - `brew-guard policy validate [file]`
 - A reproducible build script and CI and release workflows that use no
   third party actions.
@@ -169,6 +169,38 @@ Homebrew's folders is renamed or changed. `shim status` tells you which
 This protects the normal case, you typing `brew install`. It doesn't stop
 something that calls Homebrew's brew by its full path, and it doesn't stop
 malware running as you from editing your `PATH`. Run `shim status` now and then.
+
+## harden
+
+```
+brew-guard harden
+brew-guard harden --apply
+brew-guard harden --undo
+```
+
+Without a flag it only prints the settings (the three `HOMEBREW_*` exports and
+`brew analytics off`) so you can add them yourself.
+
+`--apply` does it for you. It shows what it will do and asks for a yes first
+(`--yes` skips that):
+
+- adds a block between `# >>> brew-guard harden >>>` and
+  `# <<< brew-guard harden <<<` to your shell profile (`~/.zprofile` for zsh,
+  `~/.bash_profile` for bash, or the file you give with `--profile`). Exports
+  that the profile already has are left as they are. The old profile is saved
+  in `~/.local/state/brew-guard/backups` first. If the profile is a symlink,
+  the file it points to is written.
+- turns analytics off in the git config of the Homebrew checkout, the same
+  setting `brew analytics off` writes. It uses `git config --file` on that one
+  file, so git reads no other config.
+
+It writes nothing else. It refuses to touch a profile whose block is broken
+(not closed, or twice) instead of guessing where to cut.
+
+Open a new terminal afterwards, the running one keeps its old environment.
+`--undo` removes the block and puts analytics back as they were before, unless
+you changed that setting since. It only knows what `--apply` did, which it
+records in `~/.local/state/brew-guard/harden.json`.
 
 ## repair
 
