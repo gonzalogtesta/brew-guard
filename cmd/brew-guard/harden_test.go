@@ -88,7 +88,7 @@ func TestHardenApplyAndUndo(t *testing.T) {
 	if !strings.Contains(string(b), "export HOMEBREW_NO_ANALYTICS=1") {
 		t.Fatalf("profile=%s", b)
 	}
-	if !strings.Contains(out, "backup of the profile") || !strings.Contains(out, "harden --undo") {
+	if !strings.Contains(out, "backup: ") || !strings.Contains(out, "harden --undo") {
 		t.Errorf("out=%s", out)
 	}
 	cfg, _ := os.ReadFile(filepath.Join(h.repo, ".git", "config"))
@@ -133,14 +133,14 @@ func TestHardenApplyAsksAndCanBeDeclined(t *testing.T) {
 	if _, err := os.Stat(h.profile); !os.IsNotExist(err) {
 		t.Error("the profile must not be created when declined")
 	}
-	if !strings.Contains(out, "will export HOMEBREW_NO_ANALYTICS=1") {
+	if !strings.Contains(out, "will add: export HOMEBREW_NO_ANALYTICS=1") {
 		t.Errorf("the plan should be shown before asking:\n%s", out)
 	}
 }
 
 func TestHardenApplyUnknownShellNeedsAProfile(t *testing.T) {
 	h := hardenSetup(t)
-	h.env["SHELL"] = "/usr/bin/fish"
+	h.env["SHELL"] = "/usr/bin/nu"
 	code, _, errs := runCmd(h.env, "harden", "--apply", "--yes")
 	if code != exitError || !strings.Contains(errs, "--profile") {
 		t.Fatalf("code=%d err=%s", code, errs)
@@ -169,5 +169,56 @@ func TestHardenRefusesADamagedBlock(t *testing.T) {
 	code, _, errs := runCmd(h.env, "harden", "--apply", "--yes")
 	if code != exitError || !strings.Contains(errs, "not closed") {
 		t.Fatalf("code=%d err=%s", code, errs)
+	}
+}
+
+func TestHardenBashUsesTheFileBashReadsAndBashrc(t *testing.T) {
+	h := hardenSetup(t)
+	h.env["SHELL"] = "/bin/bash"
+	home := h.env["HOME"]
+	writeFile(t, filepath.Join(home, ".profile"), "p\n")
+	writeFile(t, filepath.Join(home, ".bashrc"), "r\n")
+
+	code, out, errs := runCmd(h.env, "harden", "--apply", "--yes")
+	if code != 0 {
+		t.Fatalf("code=%d out=%s err=%s", code, out, errs)
+	}
+	if _, err := os.Stat(filepath.Join(home, ".bash_profile")); !os.IsNotExist(err) {
+		t.Error(".bash_profile must not be created next to a .profile, it would hide it")
+	}
+	for _, f := range []string{".profile", ".bashrc"} {
+		b, _ := os.ReadFile(filepath.Join(home, f))
+		if !strings.Contains(string(b), "export HOMEBREW_NO_ANALYTICS=1") {
+			t.Errorf("%s=%s", f, b)
+		}
+	}
+	if code, _, _ := runCmd(h.env, "harden", "--undo", "--yes"); code != 0 {
+		t.Fatalf("undo code=%d", code)
+	}
+	if b, _ := os.ReadFile(filepath.Join(home, ".profile")); string(b) != "p\n" {
+		t.Errorf(".profile=%q", b)
+	}
+	if b, _ := os.ReadFile(filepath.Join(home, ".bashrc")); string(b) != "r\n" {
+		t.Errorf(".bashrc=%q", b)
+	}
+}
+
+func TestHardenFishAndShellFlag(t *testing.T) {
+	h := hardenSetup(t)
+	h.env["XDG_CONFIG_HOME"] = filepath.Join(h.env["HOME"], "cfg")
+	code, out, errs := runCmd(h.env, "harden", "--apply", "--yes", "--shell", "fish")
+	if code != 0 {
+		t.Fatalf("code=%d out=%s err=%s", code, out, errs)
+	}
+	b, err := os.ReadFile(filepath.Join(h.env["HOME"], "cfg", "fish", "conf.d", "brew-guard.fish"))
+	if err != nil || !strings.Contains(string(b), "set -gx HOMEBREW_NO_ANALYTICS 1") {
+		t.Fatalf("err=%v file=%s", err, b)
+	}
+	if _, err := os.Stat(h.profile); !os.IsNotExist(err) {
+		t.Error("--shell fish must not touch .zprofile")
+	}
+	_, out, _ = runCmd(h.env, "harden", "--shell", "fish")
+	if !strings.Contains(out, "set -gx HOMEBREW_NO_AUTO_UPDATE 1") {
+		t.Errorf("the printed settings should use fish syntax:\n%s", out)
 	}
 }

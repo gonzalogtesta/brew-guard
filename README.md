@@ -185,22 +185,51 @@ Without a flag it only prints the settings (the three `HOMEBREW_*` exports and
 (`--yes` skips that):
 
 - adds a block between `# >>> brew-guard harden >>>` and
-  `# <<< brew-guard harden <<<` to your shell profile (`~/.zprofile` for zsh,
-  `~/.bash_profile` for bash, or the file you give with `--profile`). Exports
-  that the profile already has are left as they are. The old profile is saved
-  in `~/.local/state/brew-guard/backups` first. If the profile is a symlink,
-  the file it points to is written.
+  `# <<< brew-guard harden <<<` to the startup file of your shell. Exports that
+  the file already has are left as they are.
 - turns analytics off in the git config of the Homebrew checkout, the same
   setting `brew analytics off` writes. It uses `git config --file` on that one
   file, so git reads no other config.
 
-It writes nothing else. It refuses to touch a profile whose block is broken
-(not closed, or twice) instead of guessing where to cut.
+Every file is copied to `~/.local/state/brew-guard/backups` before it is
+written, and what was done is recorded in `~/.local/state/brew-guard/harden.json`.
+It refuses to touch a file whose block is broken (not closed, or twice) instead
+of guessing where to cut. A symlinked file is written through the link.
 
-Open a new terminal afterwards, the running one keeps its old environment.
-`--undo` removes the block and puts analytics back as they were before, unless
-you changed that setting since. It only knows what `--apply` did, which it
-records in `~/.local/state/brew-guard/harden.json`.
+`--undo` puts everything back as it was. A file that is still exactly as
+`--apply` wrote it is restored from its backup, or deleted if `--apply` had
+created it. A file you edited since only loses the block, so your edits stay
+(the original is still in the backups). Analytics go back to the value they had,
+unless you changed them since. Open a new terminal after either command, the
+running one keeps its old environment.
+
+### Which shell, which file
+
+Terminals (Terminal, iTerm2, Ghostty, Kitty, Alacritty, the one in VS Code, ...)
+only start a shell. What counts is which file that shell reads. The shell comes
+from `$SHELL`, or from `--shell`:
+
+| shell | file |
+|---|---|
+| zsh | `~/.zprofile` |
+| bash | the first of `~/.bash_profile`, `~/.bash_login`, `~/.profile` that exists (`~/.bash_profile` if none), and `~/.bashrc` if it exists |
+| fish | `~/.config/fish/conf.d/brew-guard.fish` (written with `set -gx`) |
+| sh, dash, ksh | `~/.profile` |
+
+bash reads only the first of its login files, so creating `~/.bash_profile` next
+to an existing `~/.profile` would hide the `.profile`. That is why it takes the
+first one that exists. `~/.bashrc` is added for terminals that start a shell
+that is not a login shell, which is common on Linux.
+
+`--profile file` writes to that one file instead (with `export NAME=value`
+lines, or `set -gx` if the shell is fish). Other shells (nushell, xonsh, csh)
+are not supported: use the plain `brew-guard harden` output and add the
+settings by hand.
+
+What it does not cover: apps started from the Dock or Finder don't read shell
+files at all, so they won't see the variables. The analytics setting in the git
+config does reach them, because it is on disk. And `brew-guard brew ...` sets
+the privacy variables for the brew it runs, in any terminal.
 
 ## repair
 
