@@ -16,6 +16,7 @@ type SetItem struct {
 	Name    string
 	Version string // as brew prints it, a revision may be attached (2.3.3_1)
 	Via     string // empty for a package that was asked for, else the package it is a dependency of
+	From    string // for an upgrade, the version installed now; empty for a new install
 }
 
 // InstallSet asks brew what installing the named packages would install:
@@ -46,16 +47,23 @@ func InstallSet(ctx context.Context, r Runner, flags []string, names ...string) 
 	return ParseDryRun(b)
 }
 
-// ParseDryRun reads the output of `brew install --dry-run`. It looks only at
-// the "==> Would install N ...:" sections. A section whose line count does
-// not match its header, or a line that is not "name [version]", is an error:
-// a wrong guess here would hide a package from the policy.
+// ParseDryRun reads the output of `brew install --dry-run`: the
+// "==> Would install N ...:" sections (lines "name version") and the
+// "==> Would upgrade N ...:" sections (lines "name old -> new"). brew upgrades
+// outdated dependencies that are already installed, so they are part of what
+// an install changes. A section whose line count does not match its header, or
+// a line that is not in that shape, is an error: a wrong guess here would hide
+// a package from the policy.
 func ParseDryRun(b []byte) ([]SetItem, error) {
-	const prefix = "==> Would install "
+	const (
+		installPrefix = "==> Would install "
+		upgradePrefix = "==> Would upgrade "
+	)
 	var (
 		out      []SetItem
 		via      string
 		inside   bool
+		upgrade  bool
 		want, n  int
 		sawTitle string
 	)
@@ -69,11 +77,12 @@ func ParseDryRun(b []byte) ([]SetItem, error) {
 	for _, line := range strings.Split(string(b), "\n") {
 		line = strings.TrimRight(line, " \r")
 		switch {
-		case strings.HasPrefix(line, prefix):
+		case strings.HasPrefix(line, installPrefix) || strings.HasPrefix(line, upgradePrefix):
 			if err := finish(); err != nil {
 				return nil, err
 			}
-			title := strings.TrimSuffix(strings.TrimPrefix(line, prefix), ":")
+			upgrade = strings.HasPrefix(line, upgradePrefix)
+			title := strings.TrimSuffix(strings.TrimPrefix(strings.TrimPrefix(line, installPrefix), upgradePrefix), ":")
 			count, rest, _ := strings.Cut(title, " ")
 			c, err := strconv.Atoi(count)
 			if err != nil || c < 0 {
@@ -93,12 +102,19 @@ func ParseDryRun(b []byte) ([]SetItem, error) {
 			}
 		case inside:
 			f := strings.Fields(line)
-			if len(f) == 0 || len(f) > 2 || !ValidName(f[0]) {
+			if len(f) == 0 || len(f) > 4 || !ValidName(f[0]) {
 				return nil, fmt.Errorf("brew dry-run: cannot read the line %q", line)
 			}
 			it := SetItem{Name: f[0], Via: via}
-			if len(f) == 2 {
-				it.Version = f[1]
+			switch {
+			case upgrade && len(f) == 4 && f[2] == "->":
+				it.From, it.Version = f[1], f[3]
+			case !upgrade && len(f) <= 2:
+				if len(f) == 2 {
+					it.Version = f[1]
+				}
+			default:
+				return nil, fmt.Errorf("brew dry-run: cannot read the line %q", line)
 			}
 			out = append(out, it)
 			n++
