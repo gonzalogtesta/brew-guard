@@ -184,9 +184,15 @@ Without a flag it only prints the settings (the three `HOMEBREW_*` exports and
 `--apply` does it for you. It shows what it will do and asks for a yes first
 (`--yes` skips that):
 
+- writes the three settings to Homebrew's own settings file,
+  `~/.homebrew/brew.env` (or `$XDG_CONFIG_HOME/homebrew/brew.env`). brew reads
+  it on every run, so it works in any terminal and for any app that starts
+  brew, whatever the shell reads. This is what keeps `brew` from auto-updating
+  when a terminal doesn't load your profile.
 - adds a block between `# >>> brew-guard harden >>>` and
-  `# <<< brew-guard harden <<<` to the startup file of your shell. Exports that
-  the file already has are left as they are.
+  `# <<< brew-guard harden <<<` to the startup file of your shell, for the
+  tools that read the environment. Settings that a file already has are left as
+  they are.
 - turns analytics off in the git config of the Homebrew checkout, the same
   setting `brew analytics off` writes. It uses `git config --file` on that one
   file, so git reads no other config.
@@ -204,6 +210,9 @@ unless you changed them since. Open a new terminal after either command, the
 running one keeps its old environment.
 
 ### Which shell, which file
+
+Homebrew's `brew.env` is always written, for any shell. The shell files below
+are on top of it. `--profile file` is the exception: it writes only that file.
 
 Terminals (Terminal, iTerm2, Ghostty, Kitty, Alacritty, the one in VS Code, ...)
 only start a shell. What counts is which file that shell reads. The shell comes

@@ -24,7 +24,7 @@ func hardenCmd(args []string, stdout, stderr io.Writer, env func(string) string)
 	undo := fs.Bool("undo", false, "put back what --apply changed")
 	yes := fs.Bool("yes", false, "do not ask for confirmation")
 	shell := fs.String("shell", "", "shell to set up: zsh, bash, fish, sh, ksh (default: the one in $SHELL)")
-	profile := fs.String("profile", "", "startup file to edit instead of the shell's usual ones")
+	profile := fs.String("profile", "", "write only this file, instead of Homebrew's brew.env and the shell's startup files")
 	if err := fs.Parse(args); err != nil || fs.NArg() > 0 {
 		if err == nil {
 			fmt.Fprintln(stderr, "harden: unexpected argument", fs.Arg(0))
@@ -53,14 +53,18 @@ func hardenCmd(args []string, stdout, stderr io.Writer, env func(string) string)
 		return hardenUndo(o, *yes, stdout, stderr)
 	}
 	if *profile != "" {
+		// Naming a file means that file and nothing else.
 		o.Targets = []harden.Target{{Path: *profile, Syntax: harden.SyntaxFor(sh)}}
 	} else {
+		// Homebrew's own file first: it covers every terminal and app. The
+		// shell's files come on top, for tools that read the environment.
+		o.Targets = []harden.Target{harden.BrewEnv(env("HOME"), env("XDG_CONFIG_HOME"))}
 		t, err := harden.Targets(sh, env("HOME"), env("XDG_CONFIG_HOME"))
 		if err != nil {
-			fmt.Fprintln(stderr, "harden:", err)
-			return exitError
+			fmt.Fprintln(stdout, "note:", err)
+			fmt.Fprintln(stdout, "note: only Homebrew's own settings file is written")
 		}
-		o.Targets = t
+		o.Targets = append(o.Targets, t...)
 	}
 	return hardenApply(o, *yes, stdout, stderr)
 }

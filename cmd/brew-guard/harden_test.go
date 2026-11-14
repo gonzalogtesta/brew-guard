@@ -141,9 +141,15 @@ func TestHardenApplyAsksAndCanBeDeclined(t *testing.T) {
 func TestHardenApplyUnknownShellNeedsAProfile(t *testing.T) {
 	h := hardenSetup(t)
 	h.env["SHELL"] = "/usr/bin/nu"
-	code, _, errs := runCmd(h.env, "harden", "--apply", "--yes")
-	if code != exitError || !strings.Contains(errs, "--profile") {
-		t.Fatalf("code=%d err=%s", code, errs)
+	code, out, errs := runCmd(h.env, "harden", "--apply", "--yes")
+	if code != 0 || !strings.Contains(out, "only Homebrew's own settings file is written") {
+		t.Fatalf("code=%d out=%s err=%s", code, out, errs)
+	}
+	if _, err := os.Stat(filepath.Join(h.env["HOME"], ".homebrew", "brew.env")); err != nil {
+		t.Errorf("brew.env should be written even for an unknown shell: %v", err)
+	}
+	if _, err := os.Stat(h.profile); !os.IsNotExist(err) {
+		t.Error("no shell file for a shell that is not known")
 	}
 	code, _, _ = runCmd(h.env, "harden", "--apply", "--yes", "--profile", h.profile)
 	if code != 0 {
@@ -220,5 +226,36 @@ func TestHardenFishAndShellFlag(t *testing.T) {
 	_, out, _ = runCmd(h.env, "harden", "--shell", "fish")
 	if !strings.Contains(out, "set -gx HOMEBREW_NO_AUTO_UPDATE 1") {
 		t.Errorf("the printed settings should use fish syntax:\n%s", out)
+	}
+}
+
+func TestHardenWritesHomebrewsOwnFileWithPlainAssignments(t *testing.T) {
+	h := hardenSetup(t)
+	code, out, errs := runCmd(h.env, "harden", "--apply", "--yes")
+	if code != 0 {
+		t.Fatalf("code=%d out=%s err=%s", code, out, errs)
+	}
+	b, err := os.ReadFile(filepath.Join(h.env["HOME"], ".homebrew", "brew.env"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(b), "\nHOMEBREW_NO_AUTO_UPDATE=1\n") || strings.Contains(string(b), "export ") {
+		t.Fatalf("brew.env:\n%s", b)
+	}
+	if code, _, _ := runCmd(h.env, "harden", "--undo", "--yes"); code != 0 {
+		t.Fatalf("undo code=%d", code)
+	}
+	if _, err := os.Stat(filepath.Join(h.env["HOME"], ".homebrew", "brew.env")); !os.IsNotExist(err) {
+		t.Error("brew.env was created by harden, undo should remove it")
+	}
+}
+
+func TestHardenWithProfileWritesOnlyThatFile(t *testing.T) {
+	h := hardenSetup(t)
+	if code, _, _ := runCmd(h.env, "harden", "--apply", "--yes", "--profile", h.profile); code != 0 {
+		t.Fatal("apply failed")
+	}
+	if _, err := os.Stat(filepath.Join(h.env["HOME"], ".homebrew", "brew.env")); !os.IsNotExist(err) {
+		t.Error("--profile must write only the named file")
 	}
 }

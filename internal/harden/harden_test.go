@@ -481,3 +481,26 @@ func TestUndoKeepsTheNewlineOfABlockWithoutSeparator(t *testing.T) {
 		t.Errorf("profile=%q", got)
 	}
 }
+
+func TestBrewEnvTargetAndSyntax(t *testing.T) {
+	b := BrewEnv("/h", "")
+	if b.Path != "/h/.homebrew/brew.env" || b.Syntax != Env || !b.MakeDir {
+		t.Fatalf("%+v", b)
+	}
+	if x := BrewEnv("/h", "/xdg"); x.Path != "/xdg/homebrew/brew.env" {
+		t.Fatalf("%+v", x)
+	}
+	e := setup(t, "-")
+	e.opts.Targets = []Target{{Path: filepath.Join(e.dir, ".homebrew", "brew.env"), Syntax: Env, MakeDir: true}}
+	e.apply(t)
+	got := read(t, e.opts.Targets[0].Path)
+	if !strings.Contains(got, "\nHOMEBREW_NO_ANALYTICS=1\n") || strings.Contains(got, "export") {
+		t.Errorf("brew.env:\n%s", got)
+	}
+	if p, _ := MakePlan(e.opts); p.Changes() {
+		t.Errorf("a second plan should find nothing to do: %+v", p)
+	}
+	if _, _, err := Undo(e.opts); err != nil {
+		t.Fatal(err)
+	}
+}

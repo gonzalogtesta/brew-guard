@@ -46,6 +46,7 @@ type Syntax int
 const (
 	POSIX Syntax = iota // export NAME=value (sh, bash, zsh, ksh)
 	Fish                // set -gx NAME value
+	Env                 // NAME=value, Homebrew's own brew.env file
 )
 
 // SyntaxFor returns the syntax a shell understands. Unknown shells get POSIX.
@@ -58,8 +59,11 @@ func SyntaxFor(shell string) Syntax {
 
 // ExportLine is the line that exports s in the given syntax.
 func ExportLine(sy Syntax, s doctor.Setting) string {
-	if sy == Fish {
+	switch sy {
+	case Fish:
 		return fmt.Sprintf("set -gx %s %s", s.Name, s.Value)
+	case Env:
+		return fmt.Sprintf("%s=%s", s.Name, s.Value)
 	}
 	return fmt.Sprintf("export %s=%s", s.Name, s.Value)
 }
@@ -169,6 +173,18 @@ func Targets(shell, home, xdgConfig string) ([]Target, error) {
 		return []Target{{Path: filepath.Join(xdgConfig, "fish", "conf.d", "brew-guard.fish"), Syntax: Fish, MakeDir: true}}, nil
 	}
 	return nil, fmt.Errorf("don't know where shell %q reads its settings, name the file with --profile (it is written with export NAME=value lines) or add the settings by hand", shell)
+}
+
+// BrewEnv is Homebrew's own settings file. brew reads it on every run, so it
+// works in any terminal and for any app that starts brew, whatever the shell
+// reads. It supports plain NAME=value lines only: no variable expansion and no
+// commands.
+func BrewEnv(home, xdgConfig string) Target {
+	p := filepath.Join(home, ".homebrew", "brew.env")
+	if xdgConfig != "" {
+		p = filepath.Join(xdgConfig, "homebrew", "brew.env")
+	}
+	return Target{Path: p, Syntax: Env, MakeDir: true}
 }
 
 func isFile(p string) bool {
