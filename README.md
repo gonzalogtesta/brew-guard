@@ -92,8 +92,11 @@ to the audit log. It only reports, it doesn't install or block anything.
 brew what it would install (`brew install --dry-run`, which installs nothing),
 prints how many packages come with it and which ones, and then checks every one
 of them with the same policy. If one dependency is too young, the whole result
-is a block and the output says which package it is. `--no-deps` checks only the
-names you gave.
+is a block and the output says which package it is. That includes dependencies
+that are already installed but outdated: `brew install` upgrades those too, and
+the dry-run says so (`Would upgrade ... go 1.23.5 -> 1.27.4`), so the new
+version is checked like anything else. `--no-deps` checks only the names you
+gave.
 
 `--outdated` does the same for upgrades, but differently: Homebrew's upgrade
 dry-run prints several sections that I can't rely on, so it reads the formula

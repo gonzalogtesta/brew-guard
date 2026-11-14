@@ -149,6 +149,11 @@ func resolveInstall(ctx context.Context, stdout io.Writer, r brewdata.Runner, fl
 		}
 		var extra []string
 		names, extra = expandSet(names, set, via)
+		for _, it := range set {
+			if it.From != "" {
+				fmt.Fprintf(stdout, "brew would also upgrade %s %s -> %s\n", it.Name, it.From, it.Version)
+			}
+		}
 		switch {
 		case len(set) == 0:
 			fmt.Fprintf(stdout, "brew has nothing new to install for %s\n", strings.Join(names, ", "))
