@@ -99,3 +99,47 @@ func TestInstallSetRefusesOddFlags(t *testing.T) {
 		}
 	}
 }
+
+func TestParseDryRunReadsUpgradesOfInstalledDependencies(t *testing.T) {
+	// Lines copied from real `brew install --dry-run` output of Homebrew 7.0.11
+	// on an Intel Mac: installing a formula would upgrade an outdated dependency.
+	items, err := ParseDryRun(fixture(t, "recorded_dryrun_upgrade.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := SetItem{Name: "go", Version: "1.27.4", From: "1.23.5", Via: "brew-guard"}
+	if len(items) != 1 || items[0] != want {
+		t.Fatalf("items=%+v, want [%+v]", items, want)
+	}
+}
+
+func TestParseDryRunUpgradeOfTheRequestedPackage(t *testing.T) {
+	items, err := ParseDryRun([]byte("==> Would upgrade 1 outdated package:\njq 1.7 -> 1.8\n"))
+	if err != nil || len(items) != 1 || items[0] != (SetItem{Name: "jq", Version: "1.8", From: "1.7"}) {
+		t.Fatalf("items=%+v err=%v", items, err)
+	}
+}
+
+func TestParseDryRunRefusesWhatItCannotReadInAnUpgrade(t *testing.T) {
+	for name, in := range map[string]string{
+		"no arrow":         "==> Would upgrade 1 dependency for x:\ngo 1.23.5 1.27.4 extra\n",
+		"only a name":      "==> Would upgrade 1 outdated package:\njq\n",
+		"count mismatch":   "==> Would upgrade 2 dependencies for x:\ngo 1.23.5 -> 1.27.4\n",
+		"bad name":         "==> Would upgrade 1 dependency for x:\n../go 1 -> 2\n",
+		"bad target":       "==> Would upgrade 1 dependency for ../x:\ngo 1 -> 2\n",
+		"arrow in install": "==> Would install 1 formula:\njq 1 -> 2\n",
+	} {
+		if _, err := ParseDryRun([]byte(in)); err == nil {
+			t.Errorf("%s: want an error", name)
+		}
+	}
+}
+
+func TestParseDryRunRefusesAThirdPartyTapPath(t *testing.T) {
+	// Real brew prints the full tap path for a formula of a third-party tap.
+	// Only plain names are checked, so this has to fail instead of being skipped.
+	_, err := ParseDryRun([]byte("==> Would install 1 formula:\ngonzalogtesta/brew-guard/brew-guard 0.2.0\n"))
+	if err == nil {
+		t.Fatal("want an error")
+	}
+}

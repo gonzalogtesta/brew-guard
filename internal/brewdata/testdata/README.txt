@@ -6,3 +6,6 @@ available, and keep the same file names.
 The files named recorded_* are the exception: they are real output from
 Homebrew 7.0.13 on Linux (homebrew/core git revision f3756358aef), so they
 have no casks. Cask fixtures are still hand-written.
+
+recorded_dryrun_upgrade.txt is real output from Homebrew 7.0.11 on an Intel Mac
+(macOS), cut to the lines about the upgrade.

@@ -159,3 +159,39 @@ func TestTapTrustCheck(t *testing.T) {
 		t.Fatalf("set must fail with a hint: %+v", c)
 	}
 }
+
+func init() { systemEnvFiles = nil } // tests must not read the machine's real files
+
+func TestBrewEnvFileCountsAsSet(t *testing.T) {
+	home := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(home, ".homebrew"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	body := "# comment\nHOMEBREW_NO_AUTO_UPDATE=1\nHOMEBREW_NO_ANALYTICS=\nHOMEBREW_NO_INSECURE_REDIRECT=\"1\"\n"
+	if err := os.WriteFile(filepath.Join(home, ".homebrew", "brew.env"), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	env := mapEnv(map[string]string{"HOME": home})
+	for name, want := range map[string]bool{"HOMEBREW_NO_AUTO_UPDATE": true, "HOMEBREW_NO_ANALYTICS": false, "HOMEBREW_NO_INSECURE_REDIRECT": true} {
+		if got := inBrewEnv(env, name); got != want {
+			t.Errorf("%s: got %v, want %v", name, got, want)
+		}
+	}
+	c := findCheck(t, Run(env, 1000), "HOMEBREW_NO_AUTO_UPDATE set")
+	if !c.OK {
+		t.Errorf("doctor should accept a setting from brew.env: %+v", c)
+	}
+}
+
+func TestBrewEnvFileFollowsXDGConfigHome(t *testing.T) {
+	x := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(x, "homebrew"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(x, "homebrew", "brew.env"), []byte("HOMEBREW_NO_AUTO_UPDATE=1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if !inBrewEnv(mapEnv(map[string]string{"XDG_CONFIG_HOME": x, "HOME": t.TempDir()}), "HOMEBREW_NO_AUTO_UPDATE") {
+		t.Error("XDG_CONFIG_HOME/homebrew/brew.env should be read")
+	}
+}

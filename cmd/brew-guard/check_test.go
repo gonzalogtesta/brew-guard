@@ -492,3 +492,44 @@ func TestFirstNames(t *testing.T) {
 		t.Fatal(got)
 	}
 }
+
+// withUpgradedDependency makes brew say that installing jq would also upgrade
+// the installed dependency oniguruma, whose new version is `ageDays` old.
+func withUpgradedDependency(h *harness, ageDays int) {
+	h.runner.out["install --dry-run jq"] = "==> Would install 1 formula:\njq 1.8.2\n==> Would upgrade 1 dependency for jq:\noniguruma 6.9.9 -> 6.9.10\n"
+	h.runner.out["info --json=v2 jq oniguruma"] = `{"formulae":[` +
+		`{"name":"jq","tap":"homebrew/core","versions":{"stable":"1.8.2"},"ruby_source_path":"Formula/j/jq.rb"},` +
+		`{"name":"oniguruma","tap":"homebrew/core","versions":{"stable":"6.9.10"},"ruby_source_path":"Formula/o/oniguruma.rb"}],"casks":[]}`
+	h.hist.h = []dates.Commit{
+		{SHA: "aaaaaaaaaaaa", Time: checkNow.AddDate(0, 0, -30), Message: "jq 1.8.2"},
+		{SHA: "bbbbbbbbbbbb", Time: checkNow.AddDate(0, 0, -ageDays), Message: "oniguruma 6.9.10"},
+	}
+}
+
+func TestCheckChecksDependenciesThatBrewWouldUpgrade(t *testing.T) {
+	h := setup(t, 30, "")
+	withUpgradedDependency(h, 2)
+	code, out, _ := runCmd(h.env, "check", "jq")
+	if code != exitBlock {
+		t.Fatalf("code=%d, a young upgrade of a dependency must block:\n%s", code, out)
+	}
+	for _, want := range []string{"brew would also upgrade oniguruma 6.9.9 -> 6.9.10", "BLOCK  oniguruma 6.9.10", "installed as a dependency of jq"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("output lacks %q:\n%s", want, out)
+		}
+	}
+}
+
+func TestWrapDoesNotRunBrewWhenAnUpgradeIsTooYoung(t *testing.T) {
+	h := setup(t, 30, "")
+	withUpgradedDependency(h, 2)
+	code, _, _ := runCmd(h.env, "brew", "install", "jq")
+	if code != exitBlock || len(h.execs) != 0 {
+		t.Fatalf("code=%d execs=%v: brew must not run", code, h.execs)
+	}
+	h2 := setup(t, 30, "")
+	withUpgradedDependency(h2, 30)
+	if code, _, _ := runCmd(h2.env, "brew", "install", "jq"); code != 0 || len(h2.execs) != 1 {
+		t.Fatalf("an old upgrade should pass: code=%d execs=%v", code, h2.execs)
+	}
+}

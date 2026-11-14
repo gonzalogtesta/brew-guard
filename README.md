@@ -38,8 +38,8 @@ container. A real install on macOS, and casks, are not tested yet.
 - `brew-guard shim install|uninstall|status`: the `brew` link.
 - `brew-guard repair`: checks if Homebrew's own folder was altered and can
   reset it to an official release.
-- `brew-guard doctor` and `brew-guard harden`: check and suggest privacy
-  settings, including that Homebrew's tap trust is not switched off.
+- `brew-guard doctor` and `brew-guard harden`: check privacy settings, including
+  that Homebrew's tap trust is not switched off, and set them for you.
 - `brew-guard policy validate [file]`
 - A reproducible build script and CI and release workflows that use no
   third party actions.
@@ -92,8 +92,11 @@ to the audit log. It only reports, it doesn't install or block anything.
 brew what it would install (`brew install --dry-run`, which installs nothing),
 prints how many packages come with it and which ones, and then checks every one
 of them with the same policy. If one dependency is too young, the whole result
-is a block and the output says which package it is. `--no-deps` checks only the
-names you gave.
+is a block and the output says which package it is. That includes dependencies
+that are already installed but outdated: `brew install` upgrades those too, and
+the dry-run says so (`Would upgrade ... go 1.23.5 -> 1.27.4`), so the new
+version is checked like anything else. `--no-deps` checks only the names you
+gave.
 
 `--outdated` does the same for upgrades, but differently: Homebrew's upgrade
 dry-run prints several sections that I can't rely on, so it reads the formula
@@ -169,6 +172,76 @@ Homebrew's folders is renamed or changed. `shim status` tells you which
 This protects the normal case, you typing `brew install`. It doesn't stop
 something that calls Homebrew's brew by its full path, and it doesn't stop
 malware running as you from editing your `PATH`. Run `shim status` now and then.
+
+## harden
+
+```
+brew-guard harden
+brew-guard harden --apply
+brew-guard harden --undo
+```
+
+Without a flag it only prints the settings (the three `HOMEBREW_*` exports and
+`brew analytics off`) so you can add them yourself.
+
+`--apply` does it for you. It shows what it will do and asks for a yes first
+(`--yes` skips that):
+
+- writes the three settings to Homebrew's own settings file,
+  `~/.homebrew/brew.env` (or `$XDG_CONFIG_HOME/homebrew/brew.env`). brew reads
+  it on every run, so it works in any terminal and for any app that starts
+  brew, whatever the shell reads. This is what keeps `brew` from auto-updating
+  when a terminal doesn't load your profile.
+- adds a block between `# >>> brew-guard harden >>>` and
+  `# <<< brew-guard harden <<<` to the startup file of your shell, for the
+  tools that read the environment. Settings that a file already has are left as
+  they are.
+- turns analytics off in the git config of the Homebrew checkout, the same
+  setting `brew analytics off` writes. It uses `git config --file` on that one
+  file, so git reads no other config.
+
+Every file is copied to `~/.local/state/brew-guard/backups` before it is
+written, and what was done is recorded in `~/.local/state/brew-guard/harden.json`.
+It refuses to touch a file whose block is broken (not closed, or twice) instead
+of guessing where to cut. A symlinked file is written through the link.
+
+`--undo` puts everything back as it was. A file that is still exactly as
+`--apply` wrote it is restored from its backup, or deleted if `--apply` had
+created it. A file you edited since only loses the block, so your edits stay
+(the original is still in the backups). Analytics go back to the value they had,
+unless you changed them since. Open a new terminal after either command, the
+running one keeps its old environment.
+
+### Which shell, which file
+
+Homebrew's `brew.env` is always written, for any shell. The shell files below
+are on top of it. `--profile file` is the exception: it writes only that file.
+
+Terminals (Terminal, iTerm2, Ghostty, Kitty, Alacritty, the one in VS Code, ...)
+only start a shell. What counts is which file that shell reads. The shell comes
+from `$SHELL`, or from `--shell`:
+
+| shell | file |
+|---|---|
+| zsh | `~/.zprofile` |
+| bash | the first of `~/.bash_profile`, `~/.bash_login`, `~/.profile` that exists (`~/.bash_profile` if none), and `~/.bashrc` if it exists |
+| fish | `~/.config/fish/conf.d/brew-guard.fish` (written with `set -gx`) |
+| sh, dash, ksh | `~/.profile` |
+
+bash reads only the first of its login files, so creating `~/.bash_profile` next
+to an existing `~/.profile` would hide the `.profile`. That is why it takes the
+first one that exists. `~/.bashrc` is added for terminals that start a shell
+that is not a login shell, which is common on Linux.
+
+`--profile file` writes to that one file instead (with `export NAME=value`
+lines, or `set -gx` if the shell is fish). Other shells (nushell, xonsh, csh)
+are not supported: use the plain `brew-guard harden` output and add the
+settings by hand.
+
+What it does not cover: apps started from the Dock or Finder don't read shell
+files at all, so they won't see the variables. The analytics setting in the git
+config does reach them, because it is on disk. And `brew-guard brew ...` sets
+the privacy variables for the brew it runs, in any terminal.
 
 ## repair
 

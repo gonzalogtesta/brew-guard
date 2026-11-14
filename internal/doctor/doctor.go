@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -36,14 +37,45 @@ var Recommended = []Setting{
 var (
 	brewRepos = []string{"/opt/homebrew", "/usr/local/Homebrew"}
 	gitBin    = "/usr/bin/git"
+
+	// Homebrew reads HOMEBREW_* settings from these files on every run, besides
+	// the user's own (see brewEnvFiles).
+	systemEnvFiles = []string{"/etc/homebrew/brew.env", "/usr/local/etc/homebrew/brew.env", "/opt/homebrew/etc/homebrew/brew.env"}
 )
+
+// brewEnvFiles lists Homebrew's settings files that apply to this user.
+func brewEnvFiles(env func(string) string) []string {
+	user := filepath.Join(env("HOME"), ".homebrew", "brew.env")
+	if x := env("XDG_CONFIG_HOME"); x != "" {
+		user = filepath.Join(x, "homebrew", "brew.env")
+	}
+	return append([]string{user}, systemEnvFiles...)
+}
+
+// inBrewEnv reports whether one of Homebrew's settings files sets name to a
+// value. Lines are NAME=value; Homebrew does no expansion and runs no commands.
+func inBrewEnv(env func(string) string, name string) bool {
+	for _, f := range brewEnvFiles(env) {
+		b, err := os.ReadFile(f)
+		if err != nil {
+			continue
+		}
+		for _, line := range strings.Split(string(b), "\n") {
+			k, v, ok := strings.Cut(strings.TrimSpace(line), "=")
+			if ok && strings.TrimSpace(k) == name && strings.Trim(strings.TrimSpace(v), `"'`) != "" {
+				return true
+			}
+		}
+	}
+	return false
+}
 
 // Run performs every check. env is os.Getenv or a test double.
 func Run(env func(string) string, euid int) []Check {
 	var out []Check
 	out = append(out, Check{"not running as root", euid != 0, ""})
 	for _, s := range Recommended {
-		ok := env(s.Name) != ""
+		ok := env(s.Name) != "" || inBrewEnv(env, s.Name)
 		d := ""
 		if !ok {
 			d = "export " + s.Name + "=" + s.Value
