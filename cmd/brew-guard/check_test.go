@@ -513,6 +513,9 @@ func TestCheckChecksDependenciesThatBrewWouldUpgrade(t *testing.T) {
 	if code != exitBlock {
 		t.Fatalf("code=%d, a young upgrade of a dependency must block:\n%s", code, out)
 	}
+	if strings.Contains(out, "would also install") {
+		t.Errorf("an upgraded dependency is not a new install:\n%s", out)
+	}
 	for _, want := range []string{"brew would also upgrade oniguruma 6.9.9 -> 6.9.10", "BLOCK  oniguruma 6.9.10", "installed as a dependency of jq"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("output lacks %q:\n%s", want, out)
@@ -531,5 +534,14 @@ func TestWrapDoesNotRunBrewWhenAnUpgradeIsTooYoung(t *testing.T) {
 	withUpgradedDependency(h2, 30)
 	if code, _, _ := runCmd(h2.env, "brew", "install", "jq"); code != 0 || len(h2.execs) != 1 {
 		t.Fatalf("an old upgrade should pass: code=%d execs=%v", code, h2.execs)
+	}
+}
+
+func TestCheckSaysUpgradeForTheRequestedPackageItself(t *testing.T) {
+	h := setup(t, 30, "")
+	h.runner.out["install --dry-run jq"] = "==> Would upgrade 1 outdated package:\njq 1.7 -> 1.8.2\n"
+	_, out, _ := runCmd(h.env, "check", "jq")
+	if !strings.Contains(out, "brew would upgrade jq 1.7 -> 1.8.2") || strings.Contains(out, "also") {
+		t.Fatalf("out=%s", out)
 	}
 }
