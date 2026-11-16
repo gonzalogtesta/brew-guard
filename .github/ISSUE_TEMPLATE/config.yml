@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security problem
+    url: https://github.com/gonzalogtesta/brew-guard/security/advisories/new
+    about: Don't open a public issue for this. Use private reporting.
