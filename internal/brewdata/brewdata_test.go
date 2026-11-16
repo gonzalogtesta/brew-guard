@@ -120,17 +120,18 @@ func TestListOutdated(t *testing.T) {
 func TestEnvDropsDangerousVariables(t *testing.T) {
 	parent := []string{
 		"HOME=/Users/x", "PATH=/tmp/evil", "DYLD_INSERT_LIBRARIES=/tmp/x.dylib", "LD_PRELOAD=/tmp/x",
-		"HOMEBREW_BREW_GIT_REMOTE=https://evil", "HOMEBREW_API_DOMAIN=https://evil", "HOMEBREW_NO_AUTO_UPDATE=0",
+		"HOMEBREW_BREW_GIT_REMOTE=https://evil", "HOMEBREW_API_DOMAIN=https://evil", "HOMEBREW_NO_AUTO_UPDATE=0", "HOMEBREW_NO_INSTALL_CLEANUP=0", "HOMEBREW_NO_AUTOREMOVE=0",
 		"GITHUB_TOKEN=secret", "LANG=en_US.UTF-8",
 	}
 	env := strings.Join(Env(parent), "\n")
-	for _, bad := range []string{"evil", "DYLD_", "LD_PRELOAD", "GITHUB_TOKEN", "NO_AUTO_UPDATE=0"} {
+	for _, bad := range []string{"evil", "DYLD_", "LD_PRELOAD", "GITHUB_TOKEN", "NO_AUTO_UPDATE=0", "NO_INSTALL_CLEANUP=0", "NO_AUTOREMOVE=0"} {
 		if strings.Contains(env, bad) {
 			t.Errorf("environment still contains %q:\n%s", bad, env)
 		}
 	}
 	for _, want := range []string{"HOME=/Users/x", "LANG=en_US.UTF-8", "PATH=" + safePath,
-		"HOMEBREW_NO_AUTO_UPDATE=1", "HOMEBREW_NO_ANALYTICS=1", "HOMEBREW_NO_INSECURE_REDIRECT=1"} {
+		"HOMEBREW_NO_AUTO_UPDATE=1", "HOMEBREW_NO_ANALYTICS=1", "HOMEBREW_NO_INSECURE_REDIRECT=1",
+		"HOMEBREW_NO_INSTALL_CLEANUP=1", "HOMEBREW_NO_AUTOREMOVE=1"} {
 		if !strings.Contains(env, want) {
 			t.Errorf("environment lacks %q", want)
 		}
