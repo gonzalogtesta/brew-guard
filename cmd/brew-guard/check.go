@@ -149,22 +149,28 @@ func resolveInstall(ctx context.Context, stdout io.Writer, r brewdata.Runner, fl
 		}
 		var extra []string
 		names, extra = expandSet(names, set, via)
+		var fresh []string // dependencies that are not installed yet, as opposed to upgraded
 		for _, it := range set {
-			if it.From != "" {
+			switch {
+			case it.From != "" && it.Via == "":
+				fmt.Fprintf(stdout, "brew would upgrade %s %s -> %s\n", it.Name, it.From, it.Version)
+			case it.From != "":
 				fmt.Fprintf(stdout, "brew would also upgrade %s %s -> %s\n", it.Name, it.From, it.Version)
+			case it.Via != "":
+				fresh = append(fresh, it.Name)
 			}
 		}
 		switch {
 		case len(set) == 0:
 			fmt.Fprintf(stdout, "brew has nothing new to install for %s\n", strings.Join(names, ", "))
-		case len(extra) > 0:
+		case len(fresh) > 0:
 			// A package that is already installed is not in the set, only its new dependencies are.
 			asked := requested(set)
 			if len(asked) == 0 {
 				asked = names[:len(names)-len(extra)]
 			}
 			fmt.Fprintf(stdout, "installing %s would also install %d more %s: %s\n",
-				strings.Join(asked, ", "), len(extra), plural(len(extra)), strings.Join(extra, ", "))
+				strings.Join(asked, ", "), len(fresh), plural(len(fresh)), strings.Join(fresh, ", "))
 		}
 	}
 	pkgs, err := brewdata.Info(ctx, r, names...)
