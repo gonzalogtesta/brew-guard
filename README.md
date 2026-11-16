@@ -9,8 +9,11 @@ set. It never patches Homebrew's files.
 
 ## Status
 
-Early development. The latest release is v0.3.0, the binaries are unsigned and
+Early development. The latest release is v0.3.1, the binaries are unsigned and
 unnotarized. Don't count on it to protect you yet.
+v0.3.0 let brew run its own cleanup and autoremove after an install, which
+deleted old versions and uninstalled a formula nobody had asked about. v0.3.1
+switches both off. Don't use `brew-guard brew install` or `upgrade` with v0.3.0.
 
 Once the `brew` link is in your `PATH`, `brew install`, `reinstall` and
 `upgrade` go through your policy first, and so does everything they would pull
@@ -300,7 +303,7 @@ Third party taps have no date source yet, so they come out as unknown.
 
 ## Releases
 
-A tag like `v0.3.0` starts the release workflow. It runs the tests, builds
+A tag like `v0.3.1` starts the release workflow. It runs the tests, builds
 the binaries for macOS and Linux (amd64 and arm64) with
 `scripts/build-release.sh`, and publishes them with a `SHA256SUMS` file.
 
