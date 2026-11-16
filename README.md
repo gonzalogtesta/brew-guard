@@ -364,6 +364,13 @@ if malware already runs as your user.
 None, standard library only. Versions are pinned, see
 [docs/PINNED-VERSIONS.md](docs/PINNED-VERSIONS.md).
 
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). Short version: no dependencies, fail
+closed, tests for everything. Security problems go through
+[SECURITY.md](SECURITY.md), not an issue. Everyone follows the
+[code of conduct](CODE_OF_CONDUCT.md).
+
 ## Licence
 
 MIT
