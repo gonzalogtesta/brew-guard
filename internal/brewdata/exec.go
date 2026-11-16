@@ -77,6 +77,11 @@ func Env(parent []string) []string {
 		"HOMEBREW_NO_ANALYTICS=1",
 		"HOMEBREW_NO_ENV_HINTS=1",
 		"HOMEBREW_NO_INSECURE_REDIRECT=1",
+		// brew would otherwise delete old versions and caches after an install,
+		// and uninstall formulae it thinks are unused (autoremove). Neither is
+		// something the policy has looked at, and neither was asked for.
+		"HOMEBREW_NO_INSTALL_CLEANUP=1",
+		"HOMEBREW_NO_AUTOREMOVE=1",
 	)
 }
 

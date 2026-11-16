@@ -152,7 +152,9 @@ brew-guard brew upgrade
   something that wasn't checked. Use the real brew directly if you mean it.
 - brew runs with a clean environment: only a few variables of yours go through,
   and every `HOMEBREW_*` you set is dropped, so a variable that redirects
-  downloads can't reach it. Analytics and auto update are off.
+  downloads can't reach it. Analytics and auto update are off, and so are the
+  cleanup and the autoremove that brew runs after an install: they delete old
+  versions and uninstall formulae that nothing was checked for.
 
 The real brew must be a different file than brew-guard. If the `brew` it finds
 is brew-guard itself it stops instead of calling itself.
